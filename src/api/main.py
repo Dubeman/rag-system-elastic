@@ -11,6 +11,7 @@ import uvicorn
 
 from ..indexing import DocumentIndexer, ElasticsearchClient
 from ..ingestion import IngestionPipeline
+from ..retrieval import HybridRetriever
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -26,12 +27,13 @@ app = FastAPI(
 es_client = None
 indexer = None
 ingestion_pipeline = None
+retriever = None
 
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup."""
-    global es_client, indexer, ingestion_pipeline
+    global es_client, indexer, ingestion_pipeline, retriever
     
     es_url = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
     
@@ -39,7 +41,8 @@ async def startup_event():
         es_client = ElasticsearchClient(es_url)
         indexer = DocumentIndexer(es_client)
         ingestion_pipeline = IngestionPipeline()
-        logger.info("Services initialized successfully")
+        retriever = HybridRetriever(es_client)
+        logger.info("Enhanced RAG services initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
         raise
@@ -54,6 +57,7 @@ class IngestRequest(BaseModel):
 class QueryRequest(BaseModel):
     question: str
     top_k: int = 5
+    search_mode: str = "dense_bm25"  # Options: bm25_only, dense_only, elser_only, dense_bm25, full_hybrid
 
 
 @app.get("/healthz")
@@ -115,18 +119,25 @@ async def ingest_documents(request: IngestRequest):
 
 @app.post("/query")
 async def query_documents(request: QueryRequest):
-    """Query documents endpoint (basic implementation)."""
+    """Enhanced query endpoint with hybrid search."""
     try:
-        results = indexer.search_basic(request.question, request.top_k)
+        # Use the hybrid retriever
+        results = retriever.retrieve(
+            query=request.question,
+            top_k=request.top_k,
+            mode=request.search_mode
+        )
         
         return {
             "question": request.question,
+            "search_mode": request.search_mode,
             "results": results,
-            "total_results": len(results)
+            "total_results": len(results),
+            "status": "success"
         }
         
     except Exception as e:
-        logger.error(f"Query failed: {e}")
+        logger.error(f"Enhanced query failed: {e}")
         raise HTTPException(status_code=500, detail=f"Query failed: {e}")
 
 

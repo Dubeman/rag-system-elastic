@@ -57,12 +57,13 @@ def ingest_documents(source: str, folder_id: str = "", sample_text: str = "") ->
         st.error(f"Error calling ingestion API: {e}")
         return None
 
-def query_documents(question: str, top_k: int = 5) -> Dict:
-    """Call the query API."""
+def query_documents(question: str, top_k: int = 5, search_mode: str = "dense_bm25") -> Dict:
+    """Call the query API with enhanced search modes."""
     try:
         payload = {
             "question": question,
-            "top_k": top_k
+            "top_k": top_k,
+            "search_mode": search_mode
         }
         
         response = requests.post(
@@ -214,7 +215,7 @@ def search_tab():
     st.header("🔍 Search Documents")
     
     # Search configuration
-    col1, col2 = st.columns([3, 1])
+    col1, col2, col3 = st.columns([3, 1, 1])
     
     with col1:
         question = st.text_input(
@@ -226,11 +227,18 @@ def search_tab():
     with col2:
         top_k = st.selectbox("Results to return:", [3, 5, 10], index=1)
     
+    with col3:
+        search_mode = st.selectbox(
+            "Search mode:",
+            ["dense_bm25", "bm25_only", "dense_only", "elser_only", "full_hybrid"],
+            help="Choose the retrieval strategy"
+        )
+    
     # Search button
     if st.button("🔍 Search", type="primary", disabled=not question.strip()):
         if question.strip():
-            with st.spinner("Searching documents..."):
-                results = query_documents(question, top_k)
+            with st.spinner(f"Searching documents using {search_mode}..."):
+                results = query_documents(question, top_k, search_mode)
             
             if results:
                 display_search_results(results)
@@ -238,45 +246,65 @@ def search_tab():
             st.warning("Please enter a question")
     
     # Search tips
-    with st.expander("💡 Search Tips"):
+    with st.expander("💡 Search Tips & Modes"):
         st.markdown("""
+        **Search Tips:**
         - Ask specific questions about the content
         - Use natural language queries
         - Try different phrasings if you don't get relevant results
         - The system searches through chunked document content
+        
+        **Search Modes:**
+        - **dense_bm25** (recommended): Combines semantic similarity + keyword matching
+        - **bm25_only**: Traditional keyword search (fastest)
+        - **dense_only**: Pure semantic similarity search
+        - **elser_only**: Elasticsearch sparse embeddings (if configured)
+        - **full_hybrid**: All methods combined with advanced fusion
         """)
 
 def display_search_results(results: Dict):
-    """Display search results."""
+    """Display enhanced search results."""
     st.subheader(f"🎯 Search Results for: *{results.get('question', '')}*")
     
     search_results = results.get("results", [])
     total_results = results.get("total_results", 0)
+    search_mode = results.get("search_mode", "unknown")
     
     if total_results == 0:
         st.warning("No results found. Try rephrasing your question or check if documents are indexed.")
         return
     
-    st.info(f"Found {total_results} relevant chunks")
+    # Display search info
+    col1, col2 = st.columns(2)
+    with col1:
+        st.info(f"Found {total_results} relevant chunks")
+    with col2:
+        st.info(f"Search mode: **{search_mode}**")
     
     # Display results
     for i, result in enumerate(search_results, 1):
-        with st.expander(f"📄 Result {i} - Score: {result.get('_score', 'N/A'):.3f}"):
-            source = result.get("_source", {})
+        search_type = result.get('search_type', 'unknown')
+        score = result.get('_score', 0)
+        
+        with st.expander(f"📄 Result {i} - Score: {score:.3f} ({search_type})"):
+            # Use the enhanced result format
+            source = result.get("_source", result)  # Fallback to result itself
             
             # Display metadata
             col1, col2 = st.columns(2)
             with col1:
-                st.write(f"**Document:** {source.get('filename', 'Unknown')}")
-                st.write(f"**Chunk ID:** {source.get('chunk_id', 'N/A')}")
+                st.write(f"**Document:** {result.get('filename', source.get('filename', 'Unknown'))}")
+                st.write(f"**Chunk ID:** {result.get('chunk_id', source.get('chunk_id', 'N/A'))}")
+                st.write(f"**Rank:** {result.get('rank', i)}")
             
             with col2:
-                st.write(f"**File URL:** {source.get('file_url', 'N/A')}")
-                st.write(f"**Modified:** {source.get('modified_time', 'N/A')}")
+                st.write(f"**File URL:** {result.get('file_url', source.get('file_url', 'N/A'))}")
+                st.write(f"**Modified:** {result.get('modified_time', source.get('modified_time', 'N/A'))}")
+                st.write(f"**Search Type:** {search_type}")
             
             # Display content
             st.markdown("**Content:**")
-            content = source.get('content', 'No content available')
+            content = result.get('content', source.get('content', source.get('text', 'No content available')))
             st.markdown(f"```\n{content}\n```")
 
 def status_tab():

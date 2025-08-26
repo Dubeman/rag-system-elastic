@@ -2,7 +2,10 @@
 
 import logging
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Optional
+
+import numpy as np
+from sentence_transformers import SentenceTransformer
 
 from .elastic_client import ElasticsearchClient
 
@@ -15,18 +18,46 @@ class DocumentIndexer:
     def __init__(self, es_client: ElasticsearchClient, index_name: str = "rag_documents"):
         self.es_client = es_client
         self.index_name = index_name
+        
+        # Initialize embedding model
+        try:
+            self.embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+            logger.info("Loaded sentence transformer model successfully")
+        except Exception as e:
+            logger.warning(f"Failed to load embedding model: {e}")
+            self.embedding_model = None
+            
         self.ensure_index_exists()
 
     def get_index_mapping(self) -> Dict:
-        """Get the index mapping configuration."""
+        """Get the index mapping configuration for hybrid search."""
         return {
             "mappings": {
                 "properties": {
+                    # Text fields for BM25 search
                     "text": {"type": "text"},
+                    "content": {"type": "text"},  # Alias for compatibility
+                    
+                    # Dense embeddings for semantic search
+                    "dense_embedding": {
+                        "type": "dense_vector",
+                        "dims": 384,  # all-MiniLM-L6-v2 dimensions
+                        "index": True,
+                        "similarity": "cosine"
+                    },
+                    
+                    # ELSER sparse embeddings (when available)
+                    "text_expansion": {
+                        "type": "sparse_vector"
+                    },
+                    
+                    # Metadata fields
                     "chunk_id": {"type": "integer"},
                     "document_id": {"type": "keyword"},
                     "filename": {"type": "keyword"},
                     "source_url": {"type": "keyword"},
+                    "file_url": {"type": "keyword"},  # Added for compatibility
+                    "modified_time": {"type": "keyword"},
                     "token_count": {"type": "integer"},
                     "char_count": {"type": "integer"},
                     "timestamp": {"type": "date"},
@@ -39,8 +70,27 @@ class DocumentIndexer:
         mapping = self.get_index_mapping()
         self.es_client.create_index(self.index_name, mapping)
 
+    def generate_dense_embedding(self, text: str) -> Optional[List[float]]:
+        """Generate dense embeddings using sentence-transformers."""
+        if not self.embedding_model:
+            return None
+            
+        try:
+            # Generate embedding
+            embedding = self.embedding_model.encode(text, normalize_embeddings=True)
+            return embedding.tolist()
+        except Exception as e:
+            logger.error(f"Failed to generate embedding: {e}")
+            return None
+
+    def generate_elser_embedding(self, text: str) -> Optional[Dict]:
+        """Generate ELSER sparse embeddings (placeholder for now)."""
+        # TODO: Implement ELSER when Elasticsearch ML model is configured
+        # For now, return None - will be added in Phase 2
+        return None
+
     def index_chunks(self, chunks: List[Dict]) -> Dict:
-        """Index document chunks."""
+        """Index document chunks with dense embeddings."""
         if not chunks:
             return {"indexed": 0, "errors": 0}
 
@@ -50,17 +100,36 @@ class DocumentIndexer:
         for chunk in chunks:
             try:
                 doc_id = f"{chunk.get('document_id', 'unknown')}_{chunk.get('chunk_id', 0)}"
+                text_content = chunk.get("text", "")
                 
+                # Generate embeddings
+                dense_embedding = self.generate_dense_embedding(text_content)
+                elser_embedding = self.generate_elser_embedding(text_content)
+                
+                # Build document with all fields
                 doc = {
-                    "text": chunk.get("text", ""),
+                    # Text content for BM25
+                    "text": text_content,
+                    "content": text_content,  # Alias for compatibility
+                    
+                    # Embeddings
+                    "dense_embedding": dense_embedding,
+                    
+                    # Metadata
                     "chunk_id": chunk.get("chunk_id", 0),
                     "document_id": chunk.get("document_id", ""),
                     "filename": chunk.get("filename", ""),
                     "source_url": chunk.get("source_url", ""),
+                    "file_url": chunk.get("file_url", chunk.get("source_url", "")),
+                    "modified_time": chunk.get("modified_time", ""),
                     "token_count": chunk.get("token_count", 0),
                     "char_count": chunk.get("char_count", 0),
                     "timestamp": datetime.utcnow().isoformat(),
                 }
+                
+                # Add ELSER embedding if available
+                if elser_embedding:
+                    doc["text_expansion"] = elser_embedding
 
                 response = self.es_client.client.index(
                     index=self.index_name,
@@ -70,6 +139,8 @@ class DocumentIndexer:
                 
                 if response["result"] in ["created", "updated"]:
                     indexed_count += 1
+                    if indexed_count % 10 == 0:  # Log progress
+                        logger.info(f"Indexed {indexed_count} chunks so far...")
                 else:
                     error_count += 1
                     
@@ -77,7 +148,7 @@ class DocumentIndexer:
                 logger.error(f"Failed to index chunk {chunk.get('chunk_id', 'unknown')}: {e}")
                 error_count += 1
 
-        logger.info(f"Indexed {indexed_count} chunks, {error_count} errors")
+        logger.info(f"Enhanced indexing complete: {indexed_count} chunks indexed, {error_count} errors")
         return {"indexed": indexed_count, "errors": error_count}
 
     def search_basic(self, query: str, size: int = 5) -> List[Dict]:
