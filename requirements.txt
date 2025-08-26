@@ -1,0 +1,48 @@
+# Core dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+streamlit==1.28.1
+pydantic==2.5.0
+python-dotenv==1.0.0
+
+# Elasticsearch
+elasticsearch==8.11.0
+
+# ML/AI dependencies
+sentence-transformers==2.2.2
+transformers==4.35.2
+torch==2.1.1
+huggingface-hub==0.19.4
+
+# Document processing
+pypdf==3.17.1
+pdfminer.six==20221105
+python-multipart==0.0.6
+
+# Google Drive integration
+google-api-python-client==2.108.0
+google-auth-httplib2==0.1.1
+google-auth-oauthlib==1.1.0
+
+# Utilities
+httpx==0.25.2
+aiofiles==23.2.1
+python-json-logger==2.0.7
+tenacity==8.2.3
+
+# Development dependencies
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+black==23.11.0
+isort==5.12.0
+flake8==6.1.0
+pre-commit==3.6.0
+
+# LangChain for enhanced chunking (install separately for testing)
+# langchain==0.3.7
+# langchain-community==0.3.6
+# langchain-text-splitters==0.3.0
+
+# Optional: For local LLM inference
+# ollama==0.1.7  # Uncomment if using Ollama
