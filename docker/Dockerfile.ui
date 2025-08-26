@@ -5,11 +5,16 @@ WORKDIR /app
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install Python dependencies (streamlit subset)
-RUN pip install --no-cache-dir streamlit httpx python-dotenv
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy UI source code
-COPY src/ui/ ./src/ui/
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy source code
+COPY src/ ./src/
 
 # Expose port
 EXPOSE 8501
