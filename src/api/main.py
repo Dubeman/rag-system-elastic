@@ -12,6 +12,7 @@ import uvicorn
 from ..indexing import DocumentIndexer, ElasticsearchClient
 from ..ingestion import IngestionPipeline
 from ..retrieval import HybridRetriever
+from ..generation import LLMClient, AnswerGenerator
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -28,12 +29,14 @@ es_client = None
 indexer = None
 ingestion_pipeline = None
 retriever = None
+llm_client = None
+answer_generator = None
 
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup."""
-    global es_client, indexer, ingestion_pipeline, retriever
+    global es_client, indexer, ingestion_pipeline, retriever, llm_client, answer_generator
     
     es_url = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
     
@@ -42,7 +45,12 @@ async def startup_event():
         indexer = DocumentIndexer(es_client)
         ingestion_pipeline = IngestionPipeline()
         retriever = HybridRetriever(es_client)
-        logger.info("Enhanced RAG services initialized successfully")
+        
+        # Initialize LLM components
+        llm_client = LLMClient()
+        answer_generator = AnswerGenerator(llm_client)
+        
+        logger.info("Enhanced RAG services with LLM initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
         raise
@@ -58,6 +66,7 @@ class QueryRequest(BaseModel):
     question: str
     top_k: int = 5
     search_mode: str = "dense_bm25"  # Options: bm25_only, dense_only, elser_only, dense_bm25, full_hybrid
+    generate_answer: bool = True  # Whether to generate LLM answer
 
 
 @app.get("/healthz")
@@ -65,10 +74,13 @@ async def health_check():
     """Health check endpoint."""
     try:
         es_health = es_client.health_check()
+        llm_available = llm_client.is_available() if llm_client else False
+        
         return {
             "status": "healthy",
             "elasticsearch": es_health["status"],
-            "services": ["elasticsearch", "api"]
+            "llm_service": "available" if llm_available else "unavailable",
+            "services": ["elasticsearch", "api", "llm"]
         }
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Service unhealthy: {e}")
@@ -119,7 +131,7 @@ async def ingest_documents(request: IngestRequest):
 
 @app.post("/query")
 async def query_documents(request: QueryRequest):
-    """Enhanced query endpoint with hybrid search."""
+    """Enhanced query endpoint with hybrid search and LLM generation."""
     try:
         # Use the hybrid retriever
         results = retriever.retrieve(
@@ -128,13 +140,30 @@ async def query_documents(request: QueryRequest):
             mode=request.search_mode
         )
         
-        return {
+        response = {
             "question": request.question,
             "search_mode": request.search_mode,
             "results": results,
             "total_results": len(results),
             "status": "success"
         }
+        
+        # Generate LLM answer if requested and available
+        if request.generate_answer and answer_generator:
+            try:
+                llm_response = answer_generator.generate_with_citations(request.question, results)
+                response["llm_response"] = llm_response
+                logger.info(f"LLM answer generated for query: {request.question[:50]}...")
+            except Exception as llm_error:
+                logger.warning(f"LLM generation failed: {llm_error}")
+                response["llm_response"] = {
+                    "answer": "LLM service temporarily unavailable.",
+                    "citations": [],
+                    "status": "error",
+                    "error": str(llm_error)
+                }
+        
+        return response
         
     except Exception as e:
         logger.error(f"Enhanced query failed: {e}")

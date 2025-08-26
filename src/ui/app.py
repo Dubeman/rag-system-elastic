@@ -57,13 +57,14 @@ def ingest_documents(source: str, folder_id: str = "", sample_text: str = "") ->
         st.error(f"Error calling ingestion API: {e}")
         return None
 
-def query_documents(question: str, top_k: int = 5, search_mode: str = "dense_bm25") -> Dict:
-    """Call the query API with enhanced search modes."""
+def query_documents(question: str, top_k: int = 5, search_mode: str = "dense_bm25", generate_answer: bool = True) -> Dict:
+    """Call the query API with enhanced search modes and LLM generation."""
     try:
         payload = {
             "question": question,
             "top_k": top_k,
-            "search_mode": search_mode
+            "search_mode": search_mode,
+            "generate_answer": generate_answer
         }
         
         response = requests.post(
@@ -215,7 +216,7 @@ def search_tab():
     st.header("🔍 Search Documents")
     
     # Search configuration
-    col1, col2, col3 = st.columns([3, 1, 1])
+    col1, col2 = st.columns([3, 1])
     
     with col1:
         question = st.text_input(
@@ -227,18 +228,33 @@ def search_tab():
     with col2:
         top_k = st.selectbox("Results to return:", [3, 5, 10], index=1)
     
-    with col3:
+    # Additional options
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
         search_mode = st.selectbox(
             "Search mode:",
             ["dense_bm25", "bm25_only", "dense_only", "elser_only", "full_hybrid"],
             help="Choose the retrieval strategy"
         )
     
+    with col2:
+        generate_answer = st.checkbox(
+            "🤖 Generate AI Answer", 
+            value=True,
+            help="Use LLM to generate a comprehensive answer based on retrieved documents"
+        )
+    
     # Search button
     if st.button("🔍 Search", type="primary", disabled=not question.strip()):
         if question.strip():
-            with st.spinner(f"Searching documents using {search_mode}..."):
-                results = query_documents(question, top_k, search_mode)
+            search_text = f"Searching documents using {search_mode}"
+            if generate_answer:
+                search_text += " and generating AI answer"
+            search_text += "..."
+            
+            with st.spinner(search_text):
+                results = query_documents(question, top_k, search_mode, generate_answer)
             
             if results:
                 display_search_results(results)
@@ -263,16 +279,22 @@ def search_tab():
         """)
 
 def display_search_results(results: Dict):
-    """Display enhanced search results."""
+    """Display enhanced search results with LLM answers."""
     st.subheader(f"🎯 Search Results for: *{results.get('question', '')}*")
     
     search_results = results.get("results", [])
     total_results = results.get("total_results", 0)
     search_mode = results.get("search_mode", "unknown")
+    llm_response = results.get("llm_response")
     
     if total_results == 0:
         st.warning("No results found. Try rephrasing your question or check if documents are indexed.")
         return
+    
+    # Display LLM Answer first (if available)
+    if llm_response:
+        display_llm_answer(llm_response)
+        st.markdown("---")
     
     # Display search info
     col1, col2 = st.columns(2)
@@ -306,6 +328,63 @@ def display_search_results(results: Dict):
             st.markdown("**Content:**")
             content = result.get('content', source.get('content', source.get('text', 'No content available')))
             st.markdown(f"```\n{content}\n```")
+
+def display_llm_answer(llm_response: Dict):
+    """Display the LLM-generated answer with citations."""
+    st.subheader("🤖 AI-Generated Answer")
+    
+    answer = llm_response.get("answer", "")
+    citations = llm_response.get("citations", [])
+    status = llm_response.get("status", "unknown")
+    model_used = llm_response.get("model_used", "unknown")
+    
+    # Display answer based on status
+    if status == "error":
+        st.error(f"❌ {answer}")
+        error_detail = llm_response.get("error", "")
+        if error_detail:
+            st.error(f"Error details: {error_detail}")
+    elif status in ["no_documents", "low_confidence"]:
+        st.warning(f"⚠️ {answer}")
+    else:
+        # Success case - display the answer
+        st.success("✅ Answer Generated Successfully")
+        
+        # Answer text
+        st.markdown("### Answer:")
+        st.markdown(answer)
+        
+        # Model info
+        col1, col2 = st.columns(2)
+        with col1:
+            st.caption(f"Model: {model_used}")
+        with col2:
+            st.caption(f"Status: {status}")
+    
+    # Display citations if available
+    if citations:
+        st.markdown("### 📚 Sources & Citations:")
+        
+        for citation in citations:
+            source_id = citation.get("source_id", 1)
+            filename = citation.get("filename", "Unknown")
+            excerpt = citation.get("content_excerpt", "")
+            score = citation.get("score", "N/A")
+            
+            with st.expander(f"📄 Source {source_id}: {filename} (Score: {score})"):
+                st.markdown(f"**Excerpt:** {excerpt}")
+                
+                file_url = citation.get("file_url", "N/A")
+                chunk_id = citation.get("chunk_id", "N/A")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Chunk ID:** {chunk_id}")
+                with col2:
+                    if file_url != "N/A":
+                        st.write(f"**File:** [Link]({file_url})")
+                    else:
+                        st.write(f"**File URL:** {file_url}")
 
 def status_tab():
     """System status interface."""

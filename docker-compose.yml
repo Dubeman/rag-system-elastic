@@ -38,12 +38,15 @@ services:
       - "8000:8000"
     environment:
       - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - LLM_SERVICE_URL=http://ollama:11434
       - ENVIRONMENT=development
     volumes:
       - ./src:/app/src
       - ./data:/app/data
     depends_on:
       elasticsearch:
+        condition: service_healthy
+      ollama:
         condition: service_healthy
     networks:
       - rag-network
@@ -66,8 +69,34 @@ services:
       - rag-network
     command: streamlit run src/ui/app.py --server.port=8501 --server.address=0.0.0.0
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rag-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_MODELS=/root/.ollama/models
+    networks:
+      - rag-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+        reservations:
+          memory: 4G
+
 volumes:
   elasticsearch_data:
+    driver: local
+  ollama_data:
     driver: local
 
 networks:

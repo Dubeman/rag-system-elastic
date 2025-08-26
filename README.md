@@ -152,6 +152,18 @@ curl -X POST "http://localhost:8000/ingest" \
      -d '{"source": "google_drive", "folder_id": "your-folder-id"}'
 ```
 
+### 🔧 Terminal Testing Commands
+
+For comprehensive Docker and curl commands for testing and troubleshooting, see: **[docker_curl_commands.txt](docker_curl_commands.txt)**
+
+This file contains:
+- Complete Docker Compose operations
+- Individual container management
+- Service health checks
+- API testing examples
+- Troubleshooting commands
+- Development workflow commands
+
 ## 🎛️ Configuration
 
 ### Retrieval Modes
