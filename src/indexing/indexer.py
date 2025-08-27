@@ -86,7 +86,7 @@ class DocumentIndexer:
     def generate_elser_embedding(self, text: str) -> Optional[Dict]:
         """Generate ELSER sparse embeddings (placeholder for now)."""
         # TODO: Implement ELSER when Elasticsearch ML model is configured
-        # For now, return None - will be added in Phase 2
+        # For now, return None - will be added in Phase 2 , this needs either a trial license or a proper license
         return None
 
     def index_chunks(self, chunks: List[Dict]) -> Dict:

@@ -26,7 +26,7 @@ API_BASE_URL = os.getenv("API_URL", "http://localhost:8000")
 def check_api_health() -> bool:
     """Check if the API is healthy."""
     try:
-        response = requests.get(f"{API_BASE_URL}/healthz", timeout=5)
+        response = requests.get(f"{API_BASE_URL}/healthz", timeout=30)
         return response.status_code == 200
     except Exception as e:
         logger.error(f"Health check failed: {e}")
@@ -44,7 +44,7 @@ def ingest_documents(source: str, folder_id: str = "", sample_text: str = "") ->
         response = requests.post(
             f"{API_BASE_URL}/ingest",
             json=payload,
-            timeout=300  # 5 minutes timeout for ingestion
+            timeout=600  # 5 minutes timeout for ingestion
         )
         
         if response.status_code == 200:
@@ -70,7 +70,7 @@ def query_documents(question: str, top_k: int = 5, search_mode: str = "dense_bm2
         response = requests.post(
             f"{API_BASE_URL}/query",
             json=payload,
-            timeout=30
+            timeout=180
         )
         
         if response.status_code == 200:

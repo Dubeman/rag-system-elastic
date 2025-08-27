@@ -27,7 +27,7 @@ class LLMClient:
                     "prompt": prompt,
                     "stream": stream
                 },
-                timeout=float(os.getenv("LLM_TIMEOUT", 60))
+                timeout=float(os.getenv("LLM_TIMEOUT", 180))
             )
             response.raise_for_status()
             

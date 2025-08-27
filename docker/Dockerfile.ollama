@@ -1,0 +1,11 @@
+FROM ollama/ollama:latest
+
+# Model name provided at build time
+ARG MODEL_NAME
+ENV MODEL_NAME=${MODEL_NAME}
+
+# Copy entrypoint script from scripts folder
+COPY ../scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
