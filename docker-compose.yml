@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
@@ -38,7 +40,7 @@ services:
     command: |
       sh -c "
         echo 'Waiting for Elasticsearch to be fully ready...'
-        sleep 10
+        sleep 15
         
         echo 'Checking if ELSER model exists...'
         if curl -s 'http://elasticsearch:9200/_ml/trained_models/.elser_model_2' | grep -q '.elser_model_2'; then
@@ -47,17 +49,33 @@ services:
           echo 'Deploying ELSER model...'
           curl -X PUT 'http://elasticsearch:9200/_ml/trained_models/.elser_model_2' \
             -H 'Content-Type: application/json' \
-            -d '{\"input\": {\"field_names\": [\"text_field\"]}}'
+            -d '{\"input\": {\"field_names\": [\"text\"]}}'
           echo 'ELSER model deployment initiated!'
         fi
         
         echo 'Starting ELSER deployment...'
-        curl -X POST 'http://elasticsearch:9200/_ml/trained_models/.elser_model_2/deployment/_start' \
-          -H 'Content-Type: application/json' \
-          -d '{\"number_of_allocations\": 1, \"threads_per_allocation\": 1}' || echo 'ELSER already running or deployment failed'
+        curl -X POST 'http://elasticsearch:9200/_ml/trained_models/.elser_model_2/deployment/_start' -H 'Content-Type: application/json' -d '{\"number_of_allocations\": 1, \"threads_per_allocation\": 1}' || echo 'ELSER deployment failed or already running'
+        
+        echo 'Waiting for ELSER deployment to be ready...'
+        sleep 30
         
         echo 'Checking ELSER deployment status...'
-        curl -s 'http://elasticsearch:9200/_ml/trained_models/.elser_model_2/deployment/_stats' || echo 'Status check failed'
+        DEPLOYMENT_STATUS=\$(curl -s 'http://elasticsearch:9200/_ml/trained_models/.elser_model_2/deployment/_stats' 2>/dev/null | grep -o '\"state\":\"[^\"]*\"' | head -1 || echo 'not_deployed')
+        
+        if echo \$DEPLOYMENT_STATUS | grep -q 'started\|starting'; then
+          echo 'ELSER deployment is running!'
+        else
+          echo 'ELSER deployment status: ' \$DEPLOYMENT_STATUS
+        fi
+        
+        echo 'Testing ELSER inference...'
+        TEST_RESPONSE=\$(curl -s -X POST 'http://elasticsearch:9200/_ml/trained_models/.elser_model_2/infer' -H 'Content-Type: application/json' -d '{\"docs\": [{\"text\": \"test document\"}]}' 2>/dev/null || echo 'inference_failed')
+        
+        if echo \$TEST_RESPONSE | grep -q 'inference_results'; then
+          echo 'ELSER inference is working!'
+        else
+          echo 'ELSER inference test failed'
+        fi
         
         echo 'ELSER setup completed!'
       "
@@ -78,9 +96,15 @@ services:
       - ./src:/app/src
       - ./data:/app/data
     depends_on:
-      - elasticsearch
-      - elasticsearch-setup
-      - ollama
+      elasticsearch:
+        condition: service_healthy
+      elasticsearch-setup:
+        condition: service_completed_successfully
+      # Temporarily disable Ollama dependency to test ELSER
+      # ollama:
+      #   condition: service_healthy
+      # ollama-setup:
+      #   condition: service_completed_successfully
     networks:
       - rag-network
     command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
@@ -103,24 +127,59 @@ services:
     command: streamlit run src/ui/app.py --server.port=8501 --server.address=0.0.0.0
 
   ollama:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.ollama
+    image: ollama/ollama:latest
     container_name: rag-ollama
-    environment:
-      - MODEL_NAME=${MODEL_NAME}
     ports:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_MODELS=/root/.ollama/models
     networks:
       - rag-network
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
-    #   interval: 30s
-    #   timeout: 30s
-    #   retries: 20
-    #   start_period: 600s  # 10 minutes
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 6G
+    #     reservations:
+    #       memory: 4G
+
+  ollama-setup:
+    image: curlimages/curl:latest
+    container_name: rag-ollama-setup
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - rag-network
+    command: |
+      sh -c "
+        echo 'Waiting for Ollama to be fully ready...'
+        sleep 15
+        
+        echo 'Checking if tinyllama model exists...'
+        if curl -s 'http://ollama:11434/api/tags' | grep -q 'tinyllama'; then
+          echo 'tinyllama model already exists!'
+        else
+          echo 'Pulling tinyllama model...'
+          curl -X POST 'http://ollama:11434/api/pull' \
+            -H 'Content-Type: application/json' \
+            -d '{\"name\": \"tinyllama\"}'
+          echo 'tinyllama model pull initiated!'
+        fi
+        
+        echo 'Checking available models...'
+        curl -s 'http://ollama:11434/api/tags' || echo 'Model check failed'
+        
+        echo 'Ollama setup completed!'
+      "
+    restart: "no"
 
 volumes:
   elasticsearch_data:

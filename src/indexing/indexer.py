@@ -48,7 +48,8 @@ class DocumentIndexer:
                     
                     # ELSER sparse embeddings (when available)
                     "text_expansion": {
-                        "type": "sparse_vector"
+                        "type": "sparse_vector",
+                        "dims": 30522  # ELSER vocabulary size
                     },
                     
                     # Metadata fields
@@ -84,10 +85,41 @@ class DocumentIndexer:
             return None
 
     def generate_elser_embedding(self, text: str) -> Optional[Dict]:
-        """Generate ELSER sparse embeddings (placeholder for now)."""
-        # TODO: Implement ELSER when Elasticsearch ML model is configured
-        # For now, return None - will be added in Phase 2 , this needs either a trial license or a proper license
-        return None
+        """Generate ELSER sparse embeddings using Elasticsearch ML model."""
+        try:
+            # ELSER expects the text in a specific field format
+            response = self.es_client.client.ml.infer_trained_model(
+                model_id=".elser_model_2",
+                docs=[{"text": text}]  # Use "text" field, not "text_field"
+            )
+            
+            # ELSER response structure:
+            # {
+            #   "inference_results": [
+            #     {
+            #       "predicted_value": {
+            #         "text_expansion": {
+            #           "tokens": {"token1": 1.23, "token2": 0.45, ...}
+            #         }
+            #       }
+            #     }
+            #   ]
+            # }
+            
+            if response and "inference_results" in response:
+                # Get the first (and only) result
+                result = response["inference_results"][0]
+                
+                # Extract the text_expansion tokens
+                if "predicted_value" in result and "text_expansion" in result["predicted_value"]:
+                    return result["predicted_value"]["text_expansion"]
+            
+            logger.warning("ELSER response structure unexpected")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to generate ELSER embedding: {e}")
+            return None
 
     def index_chunks(self, chunks: List[Dict]) -> Dict:
         """Index document chunks with dense embeddings."""
@@ -130,6 +162,7 @@ class DocumentIndexer:
                 # Add ELSER embedding if available
                 if elser_embedding:
                     doc["text_expansion"] = elser_embedding
+                    logger.debug(f"Added ELSER embedding with {len(elser_embedding.get('tokens', {}))} tokens")
 
                 response = self.es_client.client.index(
                     index=self.index_name,
@@ -175,3 +208,21 @@ class DocumentIndexer:
         except Exception as e:
             logger.error(f"Search failed: {e}")
             return []
+
+    def test_elser_connection(self) -> bool:
+        """Test if ELSER model is accessible and working."""
+        try:
+            test_text = "This is a test document for ELSER."
+            embedding = self.generate_elser_embedding(test_text)
+            
+            if embedding and "tokens" in embedding:
+                token_count = len(embedding["tokens"])
+                logger.info(f"ELSER test successful: generated {token_count} tokens")
+                return True
+            else:
+                logger.warning("ELSER test failed: no valid embedding generated")
+                return False
+                
+        except Exception as e:
+            logger.error(f"ELSER test failed with error: {e}")
+            return False
