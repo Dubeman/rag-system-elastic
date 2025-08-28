@@ -42,7 +42,7 @@ st.markdown("""
         text-align: center;
         color: #475569;
         font-size: 1.2rem;
-        margin: 0 auto 3rem auto;
+        margin: 0 auto 1.5rem auto;
         font-weight: 500;
         display: block;
         width: 100%;
@@ -63,10 +63,10 @@ st.markdown("""
     
     .link-container {
         background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-        padding: 2rem;
+        padding: 1.5rem;
         border-radius: 16px;
         border: 2px dashed #0ea5e9;
-        margin: 0 auto 2rem auto;
+        margin: 0 auto 1rem auto;
         box-shadow: 0 4px 16px rgba(14, 165, 233, 0.1);
         width: 100%;
         box-sizing: border-box;
@@ -110,12 +110,16 @@ st.markdown("""
         width: 100%;
         box-sizing: border-box;
         color: #334155;
+        caret-color: #0ea5e9;
+        outline: none;
     }
     
     .stTextInput > div > div > input:focus {
         border-color: #0ea5e9;
         box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
         outline: none;
+        background: #ffffff;
+        caret-color: #0ea5e9;
     }
     
     .stTextInput > div > div > input:hover {
@@ -220,6 +224,9 @@ st.markdown("""
         transition: all 0.3s ease;
         width: 100%;
         box-sizing: border-box;
+        color: #334155;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        line-height: 1.6;
     }
     
     .result-card:hover {
@@ -237,7 +244,11 @@ st.markdown("""
         box-shadow: 0 2px 8px rgba(14, 165, 233, 0.1);
         width: 100%;
         box-sizing: border-box;
-        color: #334155;
+        color: #1e293b;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 1rem;
+        line-height: 1.7;
+        font-weight: 400;
     }
     
     /* Mode badge styling with better alignment and contrast */
@@ -252,6 +263,7 @@ st.markdown("""
         margin: 0 auto 1rem auto;
         box-shadow: 0 2px 8px rgba(14, 165, 233, 0.2);
         text-align: center;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
     
     /* Progress and status styling with better alignment and contrast */
@@ -266,6 +278,9 @@ st.markdown("""
         box-sizing: border-box;
         text-align: center;
         font-weight: 500;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 1rem;
+        line-height: 1.5;
     }
     
     .status-error {
@@ -279,6 +294,9 @@ st.markdown("""
         box-sizing: border-box;
         text-align: center;
         font-weight: 500;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 1rem;
+        line-height: 1.5;
     }
     
     /* Input labels with better alignment and contrast */
@@ -289,6 +307,7 @@ st.markdown("""
         font-size: 1rem;
         display: block;
         width: 100%;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
     
     .stSelectbox > label {
@@ -298,6 +317,7 @@ st.markdown("""
         font-size: 1rem;
         display: block;
         width: 100%;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
     
     /* Column alignment fixes */
@@ -317,6 +337,7 @@ st.markdown("""
     .stButton > button {
         width: 100%;
         margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
     
     /* Better spacing for containers */
@@ -331,32 +352,72 @@ st.markdown("""
         border: 1px solid #e2e8f0;
         color: #334155;
         font-weight: 600;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    
+    /* Ensure expander headers are visible */
+    .streamlit-expanderHeader > div {
+        color: #1e293b !important;
+        font-weight: 600 !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    }
+    
+    /* Target the expander header text specifically */
+    .streamlit-expanderHeader span {
+        color: #1e293b !important;
+        font-weight: 600 !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    }
+    
+    /* Ensure all expander elements are visible */
+    .streamlit-expanderHeader * {
+        color: #1e293b !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Additional expander styling for better visibility */
+    .streamlit-expanderHeader:hover {
+        background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+        border-color: #0ea5e9;
+    }
+    
+    /* Ensure expander content is also visible */
+    .streamlit-expanderContent {
+        color: #334155;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
     
     /* Ensure all text has good contrast */
     .stMarkdown {
         color: #334155;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        line-height: 1.6;
     }
     
     .stSubheader {
         color: #1e293b;
         font-weight: 600;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
     
     .stHeader {
         color: #1e293b;
         font-weight: 700;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
     
     /* Better contrast for help text */
     .stMarkdown p {
         color: #475569;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        line-height: 1.6;
     }
     
     /* Ensure buttons have good text contrast */
     .stButton > button {
         color: white;
         font-weight: 600;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
     
     /* Fix for section headers to ensure they stand out */
@@ -364,6 +425,7 @@ st.markdown("""
         color: #1e293b !important;
         font-weight: 600 !important;
         text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
     }
     
     /* Ensure Streamlit subheaders are visible */
@@ -372,12 +434,193 @@ st.markdown("""
         font-weight: 600 !important;
         font-size: 1.5rem !important;
         margin-bottom: 1rem !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
     }
     
     /* Make sure all headings are visible */
     h1, h2, h3 {
         color: #1e293b !important;
         font-weight: 700 !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    }
+    
+    /* Citation and content text styling */
+    .result-content {
+        color: #334155;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        margin: 0.5rem 0;
+    }
+    
+    .result-metadata {
+        color: #64748b;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 0.9rem;
+        font-weight: 500;
+        margin: 0.25rem 0;
+    }
+    
+    /* Link styling to ensure visibility */
+    .result-metadata a {
+        color: #0ea5e9 !important;
+        text-decoration: underline;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .result-metadata a:hover {
+        color: #0284c7 !important;
+        text-decoration: none;
+    }
+    
+    /* Ensure all links in results are visible */
+    .results-container a {
+        color: #0ea5e9 !important;
+        text-decoration: underline;
+        font-weight: 600;
+    }
+    
+    .results-container a:hover {
+        color: #0284c7 !important;
+        text-decoration: none;
+    }
+    
+    /* Error message styling */
+    .error-message {
+        background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+        border: 1px solid #ef4444;
+        color: #991b1b;
+        padding: 1rem;
+        border-radius: 12px;
+        margin: 1rem 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 1rem;
+        line-height: 1.5;
+        font-weight: 500;
+    }
+    
+    /* Success message styling */
+    .success-message {
+        background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+        border: 1px solid #22c55e;
+        color: #166534;
+        padding: 1rem;
+        border-radius: 12px;
+        margin: 1rem 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 1rem;
+        line-height: 1.5;
+        font-weight: 500;
+    }
+    
+    /* Comprehensive error and warning styling for ALL Streamlit alerts */
+    .stAlert {
+        color: #334155 !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+        font-weight: 500 !important;
+    }
+    
+    .stAlert * {
+        color: #334155 !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    }
+    
+    /* Error message styling */
+    .stAlert[data-baseweb="notification"] {
+        color: #991b1b !important;
+        background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%) !important;
+        border: 1px solid #ef4444 !important;
+    }
+    
+    .stAlert[data-baseweb="notification"] * {
+        color: #991b1b !important;
+    }
+    
+    /* Warning message styling */
+    .stAlert[data-baseweb="toast"] {
+        color: #92400e !important;
+        background: linear-gradient(135deg, #fffbeb 0%, #fed7aa 100%) !important;
+        border: 1px solid #f59e0b !important;
+    }
+    
+    .stAlert[data-baseweb="toast"] * {
+        color: #92400e !important;
+    }
+    
+    /* Success message styling */
+    .stAlert[data-baseweb="banner"] {
+        color: #166534 !important;
+        background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%) !important;
+        border: 1px solid #22c55e !important;
+    }
+    
+    .stAlert[data-baseweb="banner"] * {
+        color: #166534 !important;
+    }
+    
+    /* Info message styling */
+    .stAlert[data-baseweb="inline"] {
+        color: #1e40af !important;
+        background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%) !important;
+        border: 1px solid #3b82f6 !important;
+    }
+    
+    .stAlert[data-baseweb="inline"] * {
+        color: #1e40af !important;
+    }
+    
+    /* Ensure all Streamlit elements are visible */
+    .stText, .stText * {
+        color: #334155 !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    }
+    
+    /* Target specific error/warning elements */
+    .stAlert, .stAlert *, .stAlert > div, .stAlert > div * {
+        color: #334155 !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Ensure no white text anywhere */
+    .stMarkdown *, .stText *, .stAlert *, .stSubheader *, .stHeader * {
+        color: inherit !important;
+    }
+    
+    /* Force visibility for all text elements */
+    * {
+        color: #334155 !important;
+    }
+    
+    /* Override any white text */
+    .stMarkdown, .stText, .stAlert, .stSubheader, .stHeader, p, span, div {
+        color: #334155 !important;
+    }
+    
+    /* Specific error styling for search errors and other notifications */
+    .stAlert, .stAlert *, .stAlert > div, .stAlert > div *,
+    .stAlert[data-baseweb="notification"], .stAlert[data-baseweb="notification"] *,
+    .stAlert[data-baseweb="toast"], .stAlert[data-baseweb="toast"] *,
+    .stAlert[data-baseweb="banner"], .stAlert[data-baseweb="banner"] *,
+    .stAlert[data-baseweb="inline"], .stAlert[data-baseweb="inline"] * {
+        color: #334155 !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+        font-weight: 500 !important;
+    }
+    
+    /* Additional targeting for Streamlit error elements */
+    .stAlert, .stAlert *, .stAlert > div, .stAlert > div *,
+    .stAlert[data-baseweb="notification"], .stAlert[data-baseweb="notification"] *,
+    .stAlert[data-baseweb="toast"], .stAlert[data-baseweb="toast"] *,
+    .stAlert[data-baseweb="banner"], .stAlert[data-baseweb="banner"] *,
+    .stAlert[data-baseweb="inline"], .stAlert[data-baseweb="inline"] *,
+    .stAlert[data-baseweb="toast"], .stAlert[data-baseweb="toast"] *,
+    .stAlert[data-baseweb="banner"], .stAlert[data-baseweb="banner"] *,
+    .stAlert[data-baseweb="inline"], .stAlert[data-baseweb="inline"] * {
+        color: #334155 !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+        font-weight: 500 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -438,7 +681,7 @@ def search_documents(query: str, search_mode: str, top_k: int) -> Dict:
         response = requests.post(
             "http://api:8000/query",
             json=payload,
-            timeout=60
+            timeout=180
         )
         
         if response.status_code == 200:
@@ -464,11 +707,11 @@ def main():
         st.stop()
     
     # Link Input Section
-    st.markdown('<div class="link-container">', unsafe_allow_html=True)
+    # st.markdown('<div class="link-container">', unsafe_allow_html=True)
     st.subheader("📁 Document Ingestion")
     st.markdown("*Upload your documents to enable intelligent search and analysis*")
     
-    col1, col2 = st.columns([3, 1])
+    col1, col2 = st.columns([4, 1], gap="small")
     
     with col1:
         link_input = st.text_input(
@@ -478,6 +721,8 @@ def main():
         )
     
     with col2:
+        # Add some spacing to align with the text input
+        st.markdown("<div style='height: 3.5rem;'></div>", unsafe_allow_html=True)
         if st.button("🚀 Ingest Documents", key="ingest", use_container_width=True):
             if link_input:
                 with st.spinner("Ingesting documents... This may take several minutes."):
@@ -492,7 +737,7 @@ def main():
     st.markdown('</div>', unsafe_allow_html=True)
     
     # Search Section
-    st.markdown('<div class="search-container">', unsafe_allow_html=True)
+    # st.markdown('<div class="search-container">', unsafe_allow_html=True)
     st.subheader("🔍 Intelligent Document Search")
     st.markdown("*Ask questions and get AI-powered answers from your documents*")
     
@@ -543,7 +788,7 @@ def main():
             else:
                 st.warning("Please enter a search query.")
     
-    st.markdown('</div>', unsafe_allow_html=True)
+    # st.markdown('</div>', unsafe_allow_html=True)
     
     # Results Section
     if hasattr(st.session_state, 'search_results') and st.session_state.search_results:
@@ -575,20 +820,21 @@ def main():
             
             for i, result in enumerate(results['results']):
                 with st.expander(f"Result {i+1} - {result.get('filename', 'Unknown')} (Score: {result.get('_score', 0):.3f})"):
-                    st.markdown(f"**Content:** {result.get('content', 'No content')}")
+                    # Content with proper styling
+                    st.markdown(f'<div class="result-content"><strong>Content:</strong> {result.get("content", "No content")}</div>', unsafe_allow_html=True)
                     
-                    # Metadata in columns
+                    # Metadata in columns with proper styling
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        st.markdown(f"**File:** {result.get('filename', 'Unknown')}")
+                        st.markdown(f'<div class="result-metadata"><strong>File:</strong> {result.get("filename", "Unknown")}</div>', unsafe_allow_html=True)
                     with col2:
-                        st.markdown(f"**Chunk ID:** {result.get('chunk_id', 'N/A')}")
+                        st.markdown(f'<div class="result-metadata"><strong>Chunk ID:</strong> {result.get("chunk_id", "N/A")}</div>', unsafe_allow_html=True)
                     with col3:
-                        st.markdown(f"**Search Type:** {result.get('search_type', 'Unknown')}")
+                        st.markdown(f'<div class="result-metadata"><strong>Search Type:</strong> {result.get("search_type", "Unknown")}</div>', unsafe_allow_html=True)
                     
-                    # Source link
+                    # Source link with proper styling
                     if result.get('file_url'):
-                        st.markdown(f"**Source:** [{result.get('file_url', '')}]({result.get('file_url', '')})")
+                        st.markdown(f'<div class="result-metadata"><strong>Source:</strong> <a href="{result.get("file_url", "")}" target="_blank">{result.get("file_url", "")}</a></div>', unsafe_allow_html=True)
         
         # Clear results button
         if st.button("🗑️ Clear Results", key="clear"):

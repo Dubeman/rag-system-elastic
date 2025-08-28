@@ -11,7 +11,7 @@ import uvicorn
 
 from ..indexing import DocumentIndexer, ElasticsearchClient
 from ..ingestion import IngestionPipeline
-from ..retrieval import HybridRetriever
+from ..retrieval import HybridRetriever, CachedRetriever
 from ..generation import LLMClient, AnswerGenerator
 
 # Configure logging
@@ -44,7 +44,10 @@ async def startup_event():
         es_client = ElasticsearchClient(es_url)
         indexer = DocumentIndexer(es_client)
         ingestion_pipeline = IngestionPipeline()
-        retriever = HybridRetriever(es_client)
+        
+        # Create base retriever and wrap with cache
+        base_retriever = HybridRetriever(es_client)
+        retriever = CachedRetriever(base_retriever)
         
         # Initialize LLM components
         llm_client = LLMClient()

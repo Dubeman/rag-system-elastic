@@ -3,7 +3,6 @@
 import logging
 from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
-import concurrent.futures
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -244,7 +243,8 @@ class HybridRetriever:
         return fused_results
 
     def search_hybrid(self, query: str, top_k: int = 5, mode: str = "dense_bm25") -> List[Dict]:
-        """Parallel hybrid search for 3-5x speed improvement."""
+        """Perform hybrid search with configurable modes."""
+        all_results = []
         
         if mode == "bm25_only":
             return self.search_bm25(query, top_k)
@@ -256,40 +256,41 @@ class HybridRetriever:
             return self.search_elser(query, top_k)
         
         elif mode == "dense_bm25":
-            # Parallel: Dense + BM25
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                futures = [
-                    executor.submit(self.search_bm25, query, top_k),
-                    executor.submit(self.search_dense, query, top_k)
-                ]
-                
-                bm25_results, dense_results = [f.result() for f in futures]
-                
-                all_results = [r for r in [bm25_results, dense_results] if r]
-                if len(all_results) > 1:
-                    return self.reciprocal_rank_fusion(all_results)[:top_k]
-                return all_results[0][:top_k] if all_results else []
+            # Dense + BM25 hybrid
+            bm25_results = self.search_bm25(query, top_k * 2)
+            dense_results = self.search_dense(query, top_k * 2)
+            
+            if bm25_results:
+                all_results.append(bm25_results)
+            if dense_results:
+                all_results.append(dense_results)
                 
         elif mode == "full_hybrid":
-            # Parallel: All three methods
-            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-                futures = [
-                    executor.submit(self.search_bm25, query, top_k),
-                    executor.submit(self.search_dense, query, top_k),
-                    executor.submit(self.search_elser, query, top_k)
-                ]
-                
-                # Wait for all to complete
-                bm25_results, dense_results, elser_results = [f.result() for f in futures]
-                
-                all_results = [r for r in [bm25_results, dense_results, elser_results] if r]
-                if len(all_results) > 1:
-                    return self.reciprocal_rank_fusion(all_results)[:top_k]
-                return all_results[0][:top_k] if all_results else []
+            # All three: ELSER + Dense + BM25
+            bm25_results = self.search_bm25(query, top_k * 2)
+            dense_results = self.search_dense(query, top_k * 2)
+            elser_results = self.search_elser(query, top_k * 2)
+            
+            if bm25_results:
+                all_results.append(bm25_results)
+            if dense_results:
+                all_results.append(dense_results)
+            if elser_results:
+                all_results.append(elser_results)
         
         else:
             logger.warning(f"Unknown search mode: {mode}, falling back to dense_bm25")
             return self.search_hybrid(query, top_k, "dense_bm25")
+        
+        # Fuse results and return top_k
+        if len(all_results) > 1:
+            fused = self.reciprocal_rank_fusion(all_results)
+            return fused[:top_k]
+        elif len(all_results) == 1:
+            return all_results[0][:top_k]
+        else:
+            logger.warning("No search results from any method")
+            return []
 
     def retrieve(self, query: str, top_k: int = 5, mode: str = "dense_bm25") -> List[Dict]:
         """Main retrieval method."""

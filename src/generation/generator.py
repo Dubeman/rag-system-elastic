@@ -70,12 +70,38 @@ ANSWER:"""
             
             llm_answer = self.llm_client.generate(prompt)
             
-            # Basic post-processing
+            # Enhanced post-processing and validation
             if not llm_answer or llm_answer.strip() == "":
                 llm_answer = "I don't have enough information to answer that question."
             
+            # Check for truncated responses (common indicators)
+            truncated_indicators = [
+                "...", "etc", "and so on", "continues", "more", "further", 
+                "truncated", "cut off", "incomplete"
+            ]
+            
+            is_truncated = any(indicator in llm_answer.lower() for indicator in truncated_indicators)
+            if is_truncated:
+                logger.warning(f"Detected potentially truncated response for query: {query[:50]}...")
+                # Try to regenerate with a more focused prompt
+                limited_contexts = contexts[:5] # Re-limit contexts for the focused prompt
+                context_text = "\n\n".join([
+                    f"Document {i+1} ({ctx.get('filename', 'N/A')}):\n{ctx.get('content', '')}"
+                    for i, ctx in enumerate(limited_contexts)
+                ])
+                focused_prompt = f"""Based on the documents provided, give a complete answer to: {query}
+
+Focus on providing a complete, coherent response. If you cannot complete the answer, please say so explicitly.
+
+Documents:
+{context_text}
+
+Complete answer:"""
+                
+                llm_answer = self.llm_client.generate(focused_prompt)
+            
             # Clean up the response if it starts with common prefixes
-            prefixes_to_remove = ["Answer:", "ANSWER:", "A:", "Response:"]
+            prefixes_to_remove = ["Answer:", "ANSWER:", "A:", "Response:", "Please provide a complete answer:"]
             for prefix in prefixes_to_remove:
                 if llm_answer.strip().startswith(prefix):
                     llm_answer = llm_answer.strip()[len(prefix):].strip()
@@ -88,7 +114,8 @@ ANSWER:"""
                 "status": "success",
                 "model_used": self.llm_client.model,
                 "num_contexts": len(contexts),
-                "query": query
+                "query": query,
+                "response_quality": "complete" if not is_truncated else "potentially_truncated"
             }
             
         except Exception as e:
