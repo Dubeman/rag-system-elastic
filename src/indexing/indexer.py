@@ -90,7 +90,8 @@ class DocumentIndexer:
             # ELSER expects the text in a specific field format
             response = self.es_client.client.ml.infer_trained_model(
                 model_id=".elser_model_2",
-                docs=[{"text": text}]  # Use "text" field, not "text_field"
+                docs=[{"text_field": text}],  # Use "text_field" as expected by ELSER
+                timeout="15s"  # Add timeout to prevent hanging
             )
             
             # ELSER response structure:
@@ -118,25 +119,59 @@ class DocumentIndexer:
             return None
             
         except Exception as e:
-            logger.error(f"Failed to generate ELSER embedding: {e}")
-            return None
+            logger.warning(f"ELSER embedding failed for chunk (continuing without it): {e}")
+            return None  # Continue indexing without ELSER
+
+    def generate_elser_embeddings_batch(self, texts: List[str]) -> List[Optional[Dict]]:
+        """Generate ELSER embeddings for multiple texts in one call."""
+        try:
+            # Prepare batch of documents
+            docs = [{"text_field": text} for text in texts]
+            
+            # Single API call for all texts
+            response = self.es_client.client.ml.infer_trained_model(
+                model_id=".elser_model_2",
+                docs=docs,
+                timeout="60s"  # Longer timeout for batch
+            )
+            
+            results = []
+            if response and "inference_results" in response:
+                for result in response["inference_results"]:
+                    if "predicted_value" in result and "text_expansion" in result["predicted_value"]:
+                        results.append(result["predicted_value"]["text_expansion"])
+                    else:
+                        results.append(None)
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Failed to generate ELSER embeddings batch: {e}")
+            return [None] * len(texts)
 
     def index_chunks(self, chunks: List[Dict]) -> Dict:
-        """Index document chunks with dense embeddings."""
+        """Index document chunks with batch ELSER processing."""
         if not chunks:
             return {"indexed": 0, "errors": 0}
+
+        # Extract all texts for batch processing
+        texts = [chunk.get("text", "") for chunk in chunks]
+        
+        # Generate all ELSER embeddings in one call
+        logger.info(f"Generating ELSER embeddings for {len(chunks)} chunks in batch...")
+        elser_embeddings = self.generate_elser_embeddings_batch(texts)
+        logger.info(f"ELSER batch processing complete: {len([e for e in elser_embeddings if e])} successful, {len([e for e in elser_embeddings if not e])} failed")
 
         indexed_count = 0
         error_count = 0
 
-        for chunk in chunks:
+        for i, chunk in enumerate(chunks):
             try:
                 doc_id = f"{chunk.get('document_id', 'unknown')}_{chunk.get('chunk_id', 0)}"
                 text_content = chunk.get("text", "")
                 
-                # Generate embeddings
+                # Generate dense embedding
                 dense_embedding = self.generate_dense_embedding(text_content)
-                elser_embedding = self.generate_elser_embedding(text_content)
                 
                 # Build document with all fields
                 doc = {
@@ -160,9 +195,9 @@ class DocumentIndexer:
                 }
                 
                 # Add ELSER embedding if available
-                if elser_embedding:
-                    doc["text_expansion"] = elser_embedding
-                    logger.debug(f"Added ELSER embedding with {len(elser_embedding.get('tokens', {}))} tokens")
+                if elser_embeddings[i]:
+                    doc["text_expansion"] = elser_embeddings[i]
+                    logger.debug(f"Added ELSER embedding with {len(elser_embeddings[i].get('tokens', {}))} tokens")
 
                 response = self.es_client.client.index(
                     index=self.index_name,

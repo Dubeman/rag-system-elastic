@@ -1,451 +1,604 @@
-"""Streamlit UI for RAG System."""
+"""
+Luthro - Advanced RAG Search System
+Clean, modern design with light blue theme and professional search components.
+"""
 
 import streamlit as st
 import requests
-import json
 import time
-import os
-from typing import Dict, List
-import logging
+from typing import Dict, List, Optional
+import json
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Configure page
+# Page configuration
 st.set_page_config(
-    page_title="RAG System",
+    page_title="Luthro - AI Search",
     page_icon="🔍",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# API Configuration
-API_BASE_URL = os.getenv("API_URL", "http://localhost:8000")
+# Custom CSS for enhanced Luthro styling
+st.markdown("""
+<style>
+    /* Global background */
+    .main {
+        background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 50%, #e0f7fa 100%);
+        min-height: 100vh;
+    }
+    
+    /* Header styling with better alignment and contrast */
+    .luthro-header {
+        font-size: 3rem;
+        font-weight: 800;
+        text-align: center;
+        margin: 0 auto 1rem auto;
+        color: #1e293b;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        display: block;
+        width: 100%;
+    }
+    
+    .luthro-subtitle {
+        text-align: center;
+        color: #475569;
+        font-size: 1.2rem;
+        margin: 0 auto 3rem auto;
+        font-weight: 500;
+        display: block;
+        width: 100%;
+    }
+    
+    /* Container styling with better alignment and contrast */
+    .luthro-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 2rem;
+        margin: 0 auto 2rem auto;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .link-container {
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        padding: 2rem;
+        border-radius: 16px;
+        border: 2px dashed #0ea5e9;
+        margin: 0 auto 2rem auto;
+        box-shadow: 0 4px 16px rgba(14, 165, 233, 0.1);
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .search-container {
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        padding: 2.5rem;
+        border-radius: 20px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+        border: 1px solid rgba(14, 165, 233, 0.1);
+        margin: 0 auto 2rem auto;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .results-container {
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        padding: 2rem;
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+        border: 1px solid rgba(14, 165, 233, 0.1);
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    /* Enhanced search bar styling with better alignment and contrast */
+    .stTextInput {
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+    
+    .stTextInput > div > div > input {
+        border-radius: 12px;
+        border: 2px solid #e2e8f0;
+        padding: 1rem 1.5rem;
+        font-size: 1.1rem;
+        background: white;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        width: 100%;
+        box-sizing: border-box;
+        color: #334155;
+    }
+    
+    .stTextInput > div > div > input:focus {
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+        outline: none;
+    }
+    
+    .stTextInput > div > div > input:hover {
+        border-color: #0284c7;
+        box-shadow: 0 4px 12px rgba(14, 165, 233, 0.15);
+    }
+    
+    .stTextInput > div > div > input::placeholder {
+        color: #94a3b8;
+    }
+    
+    /* Enhanced dropdown styling with better alignment and contrast */
+    .stSelectbox {
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+    
+    .stSelectbox > div > div {
+        border-radius: 12px;
+        border: 2px solid #e2e8f0;
+        background: white;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        width: 100%;
+        box-sizing: border-box;
+        color: #334155;
+    }
+    
+    .stSelectbox > div > div:hover {
+        border-color: #0284c7;
+        box-shadow: 0 4px 12px rgba(14, 165, 233, 0.15);
+    }
+    
+    /* Button styling with better alignment and contrast */
+    .luthro-button-primary {
+        background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+        color: white;
+        border: none;
+        padding: 1rem 2rem;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 1.1rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 16px rgba(14, 165, 233, 0.3);
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .luthro-button-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(14, 165, 233, 0.4);
+    }
+    
+    .luthro-button-success {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        border: none;
+        padding: 1rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .luthro-button-success:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+    }
+    
+    .luthro-button-secondary {
+        background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 10px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(100, 116, 139, 0.2);
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .luthro-button-secondary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(100, 116, 139, 0.3);
+    }
+    
+    /* Result card styling with better alignment and contrast */
+    .result-card {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin-bottom: 1rem;
+        border-left: 4px solid #0ea5e9;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .result-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* AI answer styling with better alignment and contrast */
+    .ai-answer {
+        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border-left: 4px solid #0ea5e9;
+        margin: 1rem 0;
+        box-shadow: 0 2px 8px rgba(14, 165, 233, 0.1);
+        width: 100%;
+        box-sizing: border-box;
+        color: #334155;
+    }
+    
+    /* Mode badge styling with better alignment and contrast */
+    .mode-badge {
+        background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        display: inline-block;
+        margin: 0 auto 1rem auto;
+        box-shadow: 0 2px 8px rgba(14, 165, 233, 0.2);
+        text-align: center;
+    }
+    
+    /* Progress and status styling with better alignment and contrast */
+    .status-success {
+        background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+        border: 1px solid #22c55e;
+        color: #166534;
+        padding: 1rem;
+        border-radius: 12px;
+        margin: 1rem auto;
+        width: 100%;
+        box-sizing: border-box;
+        text-align: center;
+        font-weight: 500;
+    }
+    
+    .status-error {
+        background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+        border: 1px solid #ef4444;
+        color: #991b1b;
+        padding: 1rem;
+        border-radius: 12px;
+        margin: 1rem auto;
+        width: 100%;
+        box-sizing: border-box;
+        text-align: center;
+        font-weight: 500;
+    }
+    
+    /* Input labels with better alignment and contrast */
+    .stTextInput > label {
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: 0.5rem;
+        font-size: 1rem;
+        display: block;
+        width: 100%;
+    }
+    
+    .stSelectbox > label {
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: 0.5rem;
+        font-size: 1rem;
+        display: block;
+        width: 100%;
+    }
+    
+    /* Column alignment fixes */
+    .row-widget.stHorizontal {
+        gap: 1rem;
+        align-items: stretch;
+    }
+    
+    .row-widget.stHorizontal > div {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: stretch;
+    }
+    
+    /* Streamlit specific fixes */
+    .stButton > button {
+        width: 100%;
+        margin: 0;
+    }
+    
+    /* Better spacing for containers */
+    .element-container {
+        margin-bottom: 1rem;
+    }
+    
+    /* Fix for expander alignment and contrast */
+    .streamlit-expanderHeader {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        color: #334155;
+        font-weight: 600;
+    }
+    
+    /* Ensure all text has good contrast */
+    .stMarkdown {
+        color: #334155;
+    }
+    
+    .stSubheader {
+        color: #1e293b;
+        font-weight: 600;
+    }
+    
+    .stHeader {
+        color: #1e293b;
+        font-weight: 700;
+    }
+    
+    /* Better contrast for help text */
+    .stMarkdown p {
+        color: #475569;
+    }
+    
+    /* Ensure buttons have good text contrast */
+    .stButton > button {
+        color: white;
+        font-weight: 600;
+    }
+    
+    /* Fix for section headers to ensure they stand out */
+    .stSubheader, .stHeader, h1, h2, h3, h4, h5, h6 {
+        color: #1e293b !important;
+        font-weight: 600 !important;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+    
+    /* Ensure Streamlit subheaders are visible */
+    .stSubheader {
+        color: #1e293b !important;
+        font-weight: 600 !important;
+        font-size: 1.5rem !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    /* Make sure all headings are visible */
+    h1, h2, h3 {
+        color: #1e293b !important;
+        font-weight: 700 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 def check_api_health() -> bool:
     """Check if the API is healthy."""
     try:
-        response = requests.get(f"{API_BASE_URL}/healthz", timeout=30)
+        response = requests.get("http://api:8000/healthz", timeout=5)
         return response.status_code == 200
-    except Exception as e:
-        logger.error(f"Health check failed: {e}")
+    except:
         return False
 
-def ingest_documents(source: str, folder_id: str = "", sample_text: str = "") -> Dict:
-    """Call the ingestion API."""
+def ingest_documents(link: str) -> Dict:
+    """Ingest documents from Google Drive link."""
     try:
+        # Extract folder ID from Google Drive link
+        if "drive.google.com" in link:
+            if "/folders/" in link:
+                folder_id = link.split("/folders/")[1].split("?")[0]
+            else:
+                st.error("Please provide a valid Google Drive folder link")
+                return {"status": "error"}
+        else:
+            st.error("Please provide a valid Google Drive folder link")
+            return {"status": "error"}
+        
         payload = {
-            "source": source,
-            "folder_id": folder_id,
-            "sample_text": sample_text
+            "source": "google_drive",
+            "folder_id": folder_id
         }
         
         response = requests.post(
-            f"{API_BASE_URL}/ingest",
+            "http://api:8000/ingest",
             json=payload,
-            timeout=600  # 5 minutes timeout for ingestion
+            timeout=600  # 10 minutes timeout for ingestion
         )
         
         if response.status_code == 200:
             return response.json()
         else:
             st.error(f"Ingestion failed: {response.text}")
-            return None
+            return {"status": "error"}
             
     except Exception as e:
-        st.error(f"Error calling ingestion API: {e}")
-        return None
+        st.error(f"Ingestion error: {str(e)}")
+        return {"status": "error"}
 
-def query_documents(question: str, top_k: int = 5, search_mode: str = "dense_bm25", generate_answer: bool = True) -> Dict:
-    """Call the query API with enhanced search modes and LLM generation."""
+def search_documents(query: str, search_mode: str, top_k: int) -> Dict:
+    """Search documents using the RAG system."""
     try:
         payload = {
-            "question": question,
-            "top_k": top_k,
+            "question": query,
             "search_mode": search_mode,
-            "generate_answer": generate_answer
+            "top_k": top_k,
+            "generate_answer": True
         }
         
         response = requests.post(
-            f"{API_BASE_URL}/query",
+            "http://api:8000/query",
             json=payload,
-            timeout=180
+            timeout=60
         )
         
         if response.status_code == 200:
             return response.json()
         else:
-            st.error(f"Query failed: {response.text}")
-            return None
+            st.error(f"Search failed: {response.text}")
+            return {"status": "error"}
             
     except Exception as e:
-        st.error(f"Error calling query API: {e}")
-        return None
+        st.error(f"Search error: {str(e)}")
+        return {"status": "error"}
 
 def main():
-    """Main Streamlit application."""
+    """Main Luthro application."""
     
     # Header
-    st.title("🔍 RAG System Dashboard")
-    st.markdown("*Retrieval-Augmented Generation with Elasticsearch*")
+    st.markdown('<h1 class="luthro-header">🔍 Luthro</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="luthro-subtitle">Advanced AI-Powered Document Search & Analysis</p>', unsafe_allow_html=True)
     
     # Check API health
-    if check_api_health():
-        st.success("✅ API is healthy and ready")
-    else:
-        st.error("❌ API is not accessible. Please ensure the FastAPI server is running.")
+    if not check_api_health():
+        st.error("⚠️ API service is not available. Please check if the backend is running.")
         st.stop()
     
-    # Sidebar for navigation
-    st.sidebar.title("Navigation")
-    tab = st.sidebar.radio(
-        "Choose Action:",
-        ["📤 Ingest Documents", "🔍 Search Documents", "📊 System Status"]
-    )
+    # Link Input Section
+    st.markdown('<div class="link-container">', unsafe_allow_html=True)
+    st.subheader("📁 Document Ingestion")
+    st.markdown("*Upload your documents to enable intelligent search and analysis*")
     
-    if tab == "📤 Ingest Documents":
-        ingest_tab()
-    elif tab == "🔍 Search Documents":
-        search_tab()
-    elif tab == "📊 System Status":
-        status_tab()
-
-def ingest_tab():
-    """Document ingestion interface."""
-    st.header("📤 Document Ingestion")
-    
-    # Source selection
-    source_type = st.selectbox(
-        "Select Document Source:",
-        ["sample", "google_drive"],
-        help="Choose whether to ingest sample text or documents from Google Drive"
-    )
-    
-    if source_type == "sample":
-        st.subheader("Sample Text Ingestion")
-        
-        sample_text = st.text_area(
-            "Enter sample text:",
-            value="This is a sample document for testing the RAG system. It contains some text that will be chunked and indexed in Elasticsearch.",
-            height=150,
-            help="Enter any text you want to index for testing"
-        )
-        
-        if st.button("🚀 Ingest Sample Text", type="primary"):
-            if sample_text.strip():
-                with st.spinner("Processing sample text..."):
-                    result = ingest_documents("sample", sample_text=sample_text)
-                    
-                if result:
-                    display_ingestion_result(result)
-            else:
-                st.warning("Please enter some sample text")
-    
-    elif source_type == "google_drive":
-        st.subheader("Google Drive Ingestion")
-        
-        st.info("📝 **Instructions:** Paste the Google Drive folder URL below. The system will automatically extract the folder ID and download PDFs.")
-        
-        # Google Drive URL input
-        drive_url = st.text_input(
-            "Google Drive Folder URL:",
-            placeholder="https://drive.google.com/drive/folders/1h6GptTW3DPCdhu7q5tY-83CXrpV8TmY_",
-            help="Paste the full Google Drive folder URL here"
-        )
-        
-        # Extract folder ID from URL
-        folder_id = ""
-        if drive_url:
-            if "folders/" in drive_url:
-                try:
-                    folder_id = drive_url.split("folders/")[1].split("?")[0].split("/")[0]
-                    st.success(f"✅ Folder ID extracted: `{folder_id}`")
-                except:
-                    st.error("❌ Could not extract folder ID from URL")
-            else:
-                st.error("❌ Invalid Google Drive folder URL format")
-        
-        if st.button("🚀 Ingest from Google Drive", type="primary", disabled=not folder_id):
-            if folder_id:
-                with st.spinner("Fetching and processing documents from Google Drive..."):
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
-                    
-                    # Simulate progress updates (since we can't get real-time progress from the API)
-                    for i in range(10):
-                        progress_bar.progress((i + 1) * 10)
-                        status_text.text(f"Processing... Step {i + 1}/10")
-                        time.sleep(0.5)
-                    
-                    result = ingest_documents("google_drive", folder_id=folder_id)
-                    
-                    progress_bar.progress(100)
-                    status_text.text("✅ Processing complete!")
-                    
-                if result:
-                    display_ingestion_result(result)
-            else:
-                st.warning("Please enter a valid Google Drive folder URL")
-
-def display_ingestion_result(result: Dict):
-    """Display ingestion results."""
-    st.success("✅ Ingestion completed successfully!")
-    
-    # Create metrics columns
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("Documents Processed", result.get("documents_processed", 0))
-    
-    with col2:
-        st.metric("Chunks Indexed", result.get("chunks_indexed", 0))
-    
-    with col3:
-        st.metric("Errors", result.get("errors", 0))
-    
-    with col4:
-        st.metric("Source", result.get("source", "unknown"))
-    
-    # Detailed result
-    with st.expander("📋 Detailed Results"):
-        st.json(result)
-
-def search_tab():
-    """Document search interface."""
-    st.header("🔍 Search Documents")
-    
-    # Search configuration
     col1, col2 = st.columns([3, 1])
     
     with col1:
-        question = st.text_input(
-            "Enter your question:",
-            placeholder="What is the main topic discussed in the documents?",
-            help="Ask any question about the indexed documents"
+        link_input = st.text_input(
+            "Google Drive Folder Link",
+            placeholder="https://drive.google.com/drive/folders/...",
+            help="Paste a Google Drive folder link to ingest documents for AI analysis"
         )
     
     with col2:
-        top_k = st.selectbox("Results to return:", [3, 5, 10], index=1)
+        if st.button("🚀 Ingest Documents", key="ingest", use_container_width=True):
+            if link_input:
+                with st.spinner("Ingesting documents... This may take several minutes."):
+                    result = ingest_documents(link_input)
+                    if result.get("status") == "success":
+                        st.markdown(f'<div class="status-success">✅ Successfully ingested {result.get("chunks_indexed", 0)} chunks from {result.get("documents_processed", 0)} documents!</div>', unsafe_allow_html=True)
+                    else:
+                        st.markdown('<div class="status-error">❌ Ingestion failed. Please check the link and try again.</div>', unsafe_allow_html=True)
+            else:
+                st.warning("Please enter a Google Drive folder link.")
     
-    # Additional options
-    col1, col2, col3 = st.columns(3)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Search Section
+    st.markdown('<div class="search-container">', unsafe_allow_html=True)
+    st.subheader("🔍 Intelligent Document Search")
+    st.markdown("*Ask questions and get AI-powered answers from your documents*")
+    
+    # Search configuration
+    col1, col2, col3 = st.columns([2, 1, 1])
     
     with col1:
-        search_mode = st.selectbox(
-            "Search mode:",
-            ["dense_bm25", "bm25_only", "dense_only", "elser_only", "full_hybrid"],
-            help="Choose the retrieval strategy"
+        query = st.text_input(
+            "Search Query",
+            placeholder="What are the main topics discussed in the documents?",
+            help="Ask any question about your documents - the AI will find relevant information"
         )
     
     with col2:
-        generate_answer = st.checkbox(
-            "🤖 Generate AI Answer", 
-            value=True,
-            help="Use LLM to generate a comprehensive answer based on retrieved documents"
+        search_mode = st.selectbox(
+            "Search Mode",
+            options=[
+                "elser_only",
+                "dense_only", 
+                "bm25_only",
+                "dense_bm25",
+                "full_hybrid"
+            ],
+            help="Choose your search strategy: ELSER (semantic), Dense (embeddings), BM25 (keywords), or Hybrid combinations"
+        )
+    
+    with col3:
+        top_k = st.selectbox(
+            "Results Count",
+            options=[3, 5, 10, 15, 20],
+            index=1,
+            help="Number of relevant results to return"
         )
     
     # Search button
-    if st.button("🔍 Search", type="primary", disabled=not question.strip()):
-        if question.strip():
-            search_text = f"Searching documents using {search_mode}"
-            if generate_answer:
-                search_text += " and generating AI answer"
-            search_text += "..."
-            
-            with st.spinner(search_text):
-                results = query_documents(question, top_k, search_mode, generate_answer)
-            
-            if results:
-                display_search_results(results)
-        else:
-            st.warning("Please enter a question")
-    
-    # Search tips
-    with st.expander("💡 Search Tips & Modes"):
-        st.markdown("""
-        **Search Tips:**
-        - Ask specific questions about the content
-        - Use natural language queries
-        - Try different phrasings if you don't get relevant results
-        - The system searches through chunked document content
-        
-        **Search Modes:**
-        - **dense_bm25** (recommended): Combines semantic similarity + keyword matching
-        - **bm25_only**: Traditional keyword search (fastest)
-        - **dense_only**: Pure semantic similarity search
-        - **elser_only**: Elasticsearch sparse embeddings (if configured)
-        - **full_hybrid**: All methods combined with advanced fusion
-        """)
-
-def display_search_results(results: Dict):
-    """Display enhanced search results with LLM answers."""
-    st.subheader(f"🎯 Search Results for: *{results.get('question', '')}*")
-    
-    search_results = results.get("results", [])
-    total_results = results.get("total_results", 0)
-    search_mode = results.get("search_mode", "unknown")
-    llm_response = results.get("llm_response")
-    
-    if total_results == 0:
-        st.warning("No results found. Try rephrasing your question or check if documents are indexed.")
-        return
-    
-    # Display LLM Answer first (if available)
-    if llm_response:
-        display_llm_answer(llm_response)
-        st.markdown("---")
-    
-    # Display search info
-    col1, col2 = st.columns(2)
-    with col1:
-        st.info(f"Found {total_results} relevant chunks")
+    col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.info(f"Search mode: **{search_mode}**")
-    
-    # Display results
-    for i, result in enumerate(search_results, 1):
-        search_type = result.get('search_type', 'unknown')
-        score = result.get('_score', 0)
-        
-        with st.expander(f"📄 Result {i} - Score: {score:.3f} ({search_type})"):
-            # Use the enhanced result format
-            source = result.get("_source", result)  # Fallback to result itself
-            
-            # Display metadata
-            col1, col2 = st.columns(2)
-            with col1:
-                st.write(f"**Document:** {result.get('filename', source.get('filename', 'Unknown'))}")
-                st.write(f"**Chunk ID:** {result.get('chunk_id', source.get('chunk_id', 'N/A'))}")
-                st.write(f"**Rank:** {result.get('rank', i)}")
-            
-            with col2:
-                st.write(f"**File URL:** {result.get('file_url', source.get('file_url', 'N/A'))}")
-                st.write(f"**Modified:** {result.get('modified_time', source.get('modified_time', 'N/A'))}")
-                st.write(f"**Search Type:** {search_type}")
-            
-            # Display content
-            st.markdown("**Content:**")
-            content = result.get('content', source.get('content', source.get('text', 'No content available')))
-            st.markdown(f"```\n{content}\n```")
-
-def display_llm_answer(llm_response: Dict):
-    """Display the LLM-generated answer with citations."""
-    st.subheader("🤖 AI-Generated Answer")
-    
-    answer = llm_response.get("answer", "")
-    citations = llm_response.get("citations", [])
-    status = llm_response.get("status", "unknown")
-    model_used = llm_response.get("model_used", "unknown")
-    
-    # Display answer based on status
-    if status == "error":
-        st.error(f"❌ {answer}")
-        error_detail = llm_response.get("error", "")
-        if error_detail:
-            st.error(f"Error details: {error_detail}")
-    elif status in ["no_documents", "low_confidence"]:
-        st.warning(f"⚠️ {answer}")
-    else:
-        # Success case - display the answer
-        st.success("✅ Answer Generated Successfully")
-        
-        # Answer text
-        st.markdown("### Answer:")
-        st.markdown(answer)
-        
-        # Model info
-        col1, col2 = st.columns(2)
-        with col1:
-            st.caption(f"Model: {model_used}")
-        with col2:
-            st.caption(f"Status: {status}")
-    
-    # Display citations if available
-    if citations:
-        st.markdown("### 📚 Sources & Citations:")
-        
-        for citation in citations:
-            source_id = citation.get("source_id", 1)
-            filename = citation.get("filename", "Unknown")
-            excerpt = citation.get("content_excerpt", "")
-            score = citation.get("score", "N/A")
-            
-            with st.expander(f"📄 Source {source_id}: {filename} (Score: {score})"):
-                st.markdown(f"**Excerpt:** {excerpt}")
-                
-                file_url = citation.get("file_url", "N/A")
-                chunk_id = citation.get("chunk_id", "N/A")
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.write(f"**Chunk ID:** {chunk_id}")
-                with col2:
-                    if file_url != "N/A":
-                        st.write(f"**File:** [Link]({file_url})")
+        if st.button("🔍 Search Documents", key="search", use_container_width=True):
+            if query:
+                with st.spinner("Searching documents with AI..."):
+                    results = search_documents(query, search_mode, top_k)
+                    if results.get("status") == "success":
+                        st.session_state.search_results = results
+                        st.session_state.query = query
+                        st.rerun()
                     else:
-                        st.write(f"**File URL:** {file_url}")
-
-def status_tab():
-    """System status interface."""
-    st.header("📊 System Status")
+                        st.error("Search failed. Please try again.")
+            else:
+                st.warning("Please enter a search query.")
     
-    # API Health Check
-    if st.button("🔄 Refresh Status"):
-        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
     
-    # Health status
-    if check_api_health():
-        st.success("✅ FastAPI Server: Healthy")
+    # Results Section
+    if hasattr(st.session_state, 'search_results') and st.session_state.search_results:
+        st.markdown('<div class="results-container">', unsafe_allow_html=True)
         
-        # Try to get more detailed health info
-        try:
-            response = requests.get(f"{API_BASE_URL}/healthz")
-            health_data = response.json()
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.metric("API Status", health_data.get("status", "unknown"))
-                st.metric("Elasticsearch", health_data.get("elasticsearch", "unknown"))
-            
-            with col2:
-                services = health_data.get("services", [])
-                st.write("**Active Services:**")
-                for service in services:
-                    st.write(f"• {service}")
-            
-            with st.expander("📋 Detailed Health Info"):
-                st.json(health_data)
-                
-        except Exception as e:
-            st.warning(f"Could not get detailed health info: {e}")
-    else:
-        st.error("❌ FastAPI Server: Not accessible")
+        # Search summary
+        results = st.session_state.search_results
+        st.subheader(f"📊 Search Results for: '{st.session_state.query}'")
         
-        st.markdown("""
-        **Troubleshooting:**
-        - Ensure Docker containers are running: `docker compose up`
-        - Check if FastAPI is running on port 8000
-        - Verify Elasticsearch is accessible
-        """)
-    
-    # System Information
-    st.subheader("🛠️ System Information")
-    
-    info_data = {
-        "API Base URL": API_BASE_URL,
-        "Expected Endpoints": ["/healthz", "/ingest", "/query"],
-        "Supported Sources": ["sample", "google_drive"],
-        "Frontend": "Streamlit",
-        "Backend": "FastAPI + Elasticsearch"
-    }
-    
-    for key, value in info_data.items():
-        if isinstance(value, list):
-            st.write(f"**{key}:** {', '.join(value)}")
-        else:
-            st.write(f"**{key}:** {value}")
+        # Search mode info with enhanced badge
+        mode_descriptions = {
+            "elser_only": "ELSER Semantic Search",
+            "dense_only": "Dense Vector Search", 
+            "bm25_only": "BM25 Keyword Search",
+            "dense_bm25": "Dense + BM25 Hybrid",
+            "full_hybrid": "ELSER + Dense + BM25 Full Hybrid"
+        }
+        
+        st.markdown(f'<div class="mode-badge">🔧 {mode_descriptions.get(results.get("search_mode", ""), results.get("search_mode", ""))}</div>', unsafe_allow_html=True)
+        
+        # LLM Answer with enhanced styling
+        if results.get('llm_response') and results['llm_response'].get('answer'):
+            st.markdown("### 💡 AI Generated Answer")
+            st.markdown(f'<div class="ai-answer">{results["llm_response"]["answer"]}</div>', unsafe_allow_html=True)
+        
+        # Search Results with enhanced cards
+        if results.get('results'):
+            st.markdown(f"### 📚 Found {len(results['results'])} Results")
+            
+            for i, result in enumerate(results['results']):
+                with st.expander(f"Result {i+1} - {result.get('filename', 'Unknown')} (Score: {result.get('_score', 0):.3f})"):
+                    st.markdown(f"**Content:** {result.get('content', 'No content')}")
+                    
+                    # Metadata in columns
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.markdown(f"**File:** {result.get('filename', 'Unknown')}")
+                    with col2:
+                        st.markdown(f"**Chunk ID:** {result.get('chunk_id', 'N/A')}")
+                    with col3:
+                        st.markdown(f"**Search Type:** {result.get('search_type', 'Unknown')}")
+                    
+                    # Source link
+                    if result.get('file_url'):
+                        st.markdown(f"**Source:** [{result.get('file_url', '')}]({result.get('file_url', '')})")
+        
+        # Clear results button
+        if st.button("🗑️ Clear Results", key="clear"):
+            if 'search_results' in st.session_state:
+                del st.session_state.search_results
+            if 'query' in st.session_state:
+                del st.session_state.query
+            st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()

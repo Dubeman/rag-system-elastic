@@ -71,7 +71,7 @@ class TestELSERRAG(unittest.TestCase):
         print(f"✅ ELSER model exists: {model_info.get('model_id', 'Unknown')}")
         
         # Check deployment status
-        response = requests.get(f"{self.elasticsearch_url}/_ml/trained_models/.elser_model_2/deployment/_stats")
+        response = requests.get(f"{self.elasticsearch_url}/_ml/trained_models/.elser_model_2/_stats")
         self.assertEqual(response.status_code, 200, "Should be able to get deployment stats")
         
         deployment_info = response.json()
@@ -92,11 +92,11 @@ class TestELSERRAG(unittest.TestCase):
         test_text = "This is a test document about machine learning and artificial intelligence."
         
         payload = {
-            "docs": [{"text": test_text}]
+            "docs": [{"text_field": test_text}]
         }
         
         response = requests.post(
-            f"{self.elasticsearch_url}/_ml/trained_models/.elser_model_2/infer",
+            f"{self.elasticsearch_url}/_ml/trained_models/.elser_model_2/_infer",
             json=payload,
             headers={"Content-Type": "application/json"},
             timeout=30
@@ -136,8 +136,8 @@ class TestELSERRAG(unittest.TestCase):
             print(f"\n📝 Testing query: '{query}'")
             
             payload = {
-                "query": query,
-                "mode": "elser_only",  # Force ELSER mode
+                "question": query,
+                "search_mode": "elser_only",  # Force ELSER mode
                 "top_k": 5
             }
             
@@ -154,18 +154,18 @@ class TestELSERRAG(unittest.TestCase):
             print(f"✅ Query successful for: {query}")
             
             # Verify response structure
-            self.assertIn("answer", result, "Response should contain answer")
-            self.assertIn("sources", result, "Response should contain sources")
+            self.assertIn("results", result, "Response should contain results")
+            self.assertIn("llm_response", result, "Response should contain llm_response")
             
-            print(f"📖 Answer: {result.get('answer', 'No answer')[:100]}...")
-            print(f"🔗 Sources: {len(result.get('sources', []))}")
+            print(f"📖 Results: {len(result.get('results', []))}")
+            print(f"🔗 LLM Response: {result.get('llm_response', {}).get('answer', 'No answer')[:100]}...")
             
-            # If sources exist, verify they have expected structure
-            sources = result.get("sources", [])
-            if sources:
-                for source in sources:
-                    self.assertIn("text", source, "Source should contain text")
-                    self.assertIn("filename", source, "Source should contain filename")
+            # If results exist, verify they have expected structure
+            results = result.get("results", [])
+            if results:
+                for result_item in results:
+                    self.assertIn("content", result_item, "Result should contain content")
+                    self.assertIn("filename", result_item, "Result should contain filename")
     
     def test_04_elser_hybrid_search(self):
         """Test ELSER in hybrid search mode."""
@@ -174,8 +174,8 @@ class TestELSERRAG(unittest.TestCase):
         query = "What are the main concepts discussed in the documents?"
         
         payload = {
-            "query": query,
-            "mode": "hybrid",  # Use hybrid search
+            "question": query,
+            "search_mode": "full_hybrid",  # Use full hybrid search (ELSER + Dense + BM25)
             "top_k": 5
         }
         
@@ -190,8 +190,8 @@ class TestELSERRAG(unittest.TestCase):
         
         result = response.json()
         print(f"✅ Hybrid search successful!")
-        print(f"📖 Answer: {result.get('answer', 'No answer')[:100]}...")
-        print(f"🔗 Sources: {len(result.get('sources', []))}")
+        print(f"📖 Results: {len(result.get('results', []))}")
+        print(f"🔗 LLM Response: {result.get('llm_response', {}).get('answer', 'No answer')[:100]}...")
     
     def test_05_elser_error_handling(self):
         """Test ELSER error handling with invalid queries."""
@@ -199,8 +199,8 @@ class TestELSERRAG(unittest.TestCase):
         
         # Test with empty query
         payload = {
-            "query": "",
-            "mode": "elser_only",
+            "question": "",
+            "search_mode": "elser_only",
             "top_k": 5
         }
         
@@ -218,8 +218,8 @@ class TestELSERRAG(unittest.TestCase):
         long_query = "This is a very long query " * 100  # Create a very long query
         
         payload = {
-            "query": long_query,
-            "mode": "elser_only",
+            "question": long_query,
+            "search_mode": "elser_only",
             "top_k": 5
         }
         
@@ -240,8 +240,8 @@ class TestELSERRAG(unittest.TestCase):
         query = "What is the main topic discussed?"
         
         payload = {
-            "query": query,
-            "mode": "elser_only",
+            "question": query,
+            "search_mode": "elser_only",
             "top_k": 5
         }
         
@@ -265,8 +265,8 @@ class TestELSERRAG(unittest.TestCase):
         self.assertLess(response_time, 30.0, f"Query should complete within 30 seconds, took {response_time:.2f}s")
         
         result = response.json()
-        print(f"📖 Answer length: {len(result.get('answer', ''))}")
-        print(f"🔗 Sources count: {len(result.get('sources', []))}")
+        print(f"📖 Results count: {len(result.get('results', []))}")
+        print(f"🔗 LLM Response length: {len(result.get('llm_response', {}).get('answer', ''))}")
 
 
 if __name__ == "__main__":

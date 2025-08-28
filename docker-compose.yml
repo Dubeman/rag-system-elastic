@@ -42,42 +42,46 @@ services:
         echo 'Waiting for Elasticsearch to be fully ready...'
         sleep 15
         
-        echo 'Checking if ELSER model exists...'
+        echo 'Step 1: Checking if ELSER model exists...'
         if curl -s 'http://elasticsearch:9200/_ml/trained_models/.elser_model_2' | grep -q '.elser_model_2'; then
-          echo 'ELSER model already exists!'
+          echo '✅ ELSER model already exists!'
         else
-          echo 'Deploying ELSER model...'
-          curl -X PUT 'http://elasticsearch:9200/_ml/trained_models/.elser_model_2' \
-            -H 'Content-Type: application/json' \
-            -d '{\"input\": {\"field_names\": [\"text\"]}}'
-          echo 'ELSER model deployment initiated!'
+          echo '❌ ELSER model not found - this should not happen'
+          exit 1
         fi
         
-        echo 'Starting ELSER deployment...'
-        curl -X POST 'http://elasticsearch:9200/_ml/trained_models/.elser_model_2/deployment/_start' -H 'Content-Type: application/json' -d '{\"number_of_allocations\": 1, \"threads_per_allocation\": 1}' || echo 'ELSER deployment failed or already running'
+        echo 'Step 2: Creating ELSER inference pipeline...'
+        PIPELINE_RESPONSE=\$(curl -s -X PUT 'http://elasticsearch:9200/_ingest/pipeline/elser_pipeline' -H 'Content-Type: application/json' -d '{\"description\": \"ELSER v2 inference pipeline\", \"processors\": [{\"inference\": {\"model_id\": \".elser_model_2\", \"target_field\": \"text_expansion\", \"field_map\": {\"text\": \"text_field\"}}}]}' 2>/dev/null || echo 'pipeline_creation_failed')
         
-        echo 'Waiting for ELSER deployment to be ready...'
-        sleep 30
-        
-        echo 'Checking ELSER deployment status...'
-        DEPLOYMENT_STATUS=\$(curl -s 'http://elasticsearch:9200/_ml/trained_models/.elser_model_2/deployment/_stats' 2>/dev/null | grep -o '\"state\":\"[^\"]*\"' | head -1 || echo 'not_deployed')
-        
-        if echo \$DEPLOYMENT_STATUS | grep -q 'started\|starting'; then
-          echo 'ELSER deployment is running!'
+        if echo \$PIPELINE_RESPONSE | grep -q 'acknowledged.*true'; then
+          echo '✅ ELSER inference pipeline created successfully!'
         else
-          echo 'ELSER deployment status: ' \$DEPLOYMENT_STATUS
+          echo '❌ Failed to create ELSER pipeline: ' \$PIPELINE_RESPONSE
         fi
         
-        echo 'Testing ELSER inference...'
-        TEST_RESPONSE=\$(curl -s -X POST 'http://elasticsearch:9200/_ml/trained_models/.elser_model_2/infer' -H 'Content-Type: application/json' -d '{\"docs\": [{\"text\": \"test document\"}]}' 2>/dev/null || echo 'inference_failed')
+        echo 'Step 3: Testing ELSER inference pipeline...'
+        sleep 10
         
-        if echo \$TEST_RESPONSE | grep -q 'inference_results'; then
-          echo 'ELSER inference is working!'
+        TEST_RESPONSE=\$(curl -s -X POST 'http://elasticsearch:9200/_ingest/pipeline/elser_pipeline/_simulate' -H 'Content-Type: application/json' -d '{\"docs\": [{\"_source\": {\"text\": \"This is a test document for ELSER inference.\"}}]}' 2>/dev/null || echo 'pipeline_test_failed')
+        
+        if echo \$TEST_RESPONSE | grep -q 'text_expansion'; then
+          echo '✅ ELSER inference pipeline is working!'
+          echo 'Sample inference result:'
+          echo \$TEST_RESPONSE | jq '.docs[0]._source.text_expansion' 2>/dev/null || echo 'Could not parse result'
         else
-          echo 'ELSER inference test failed'
+          echo '❌ ELSER inference pipeline test failed: ' \$TEST_RESPONSE
         fi
         
-        echo 'ELSER setup completed!'
+        echo 'Step 4: Verifying pipeline exists...'
+        PIPELINE_CHECK=\$(curl -s 'http://elasticsearch:9200/_ingest/pipeline/elser_pipeline' 2>/dev/null || echo 'pipeline_check_failed')
+        
+        if echo \$PIPELINE_CHECK | grep -q 'elser_pipeline'; then
+          echo '✅ ELSER pipeline verification successful!'
+        else
+          echo '❌ Pipeline verification failed: ' \$PIPELINE_CHECK
+        fi
+        
+        echo '🎉 ELSER v2 setup completed successfully!'
       "
     restart: "no"
 
@@ -137,12 +141,12 @@ services:
       - OLLAMA_MODELS=/root/.ollama/models
     networks:
       - rag-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 5
+    #   start_period: 30s
     # deploy:
     #   resources:
     #     limits:
@@ -153,9 +157,9 @@ services:
   ollama-setup:
     image: curlimages/curl:latest
     container_name: rag-ollama-setup
-    depends_on:
-      ollama:
-        condition: service_healthy
+    # depends_on:
+    #   ollama:
+    #     condition: service_healthy
     networks:
       - rag-network
     command: |

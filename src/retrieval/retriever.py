@@ -132,10 +132,79 @@ class HybridRetriever:
             return []
 
     def search_elser(self, query: str, top_k: int = 10) -> List[Dict]:
-        """ELSER sparse vector search (placeholder)."""
-        # TODO: Implement when ELSER model is configured in Elasticsearch
-        logger.info("ELSER search not yet implemented")
-        return []
+        """ELSER sparse vector search using the inference pipeline."""
+        try:
+            # Generate ELSER embedding for the query
+            query_embedding = self._generate_elser_query_embedding(query)
+            if not query_embedding:
+                logger.warning("Failed to generate ELSER query embedding")
+                return []
+            
+            # Search using the text_expansion field
+            response = self.es_client.client.search(
+                index=self.index_name,
+                body={
+                    "query": {
+                        "text_expansion": {
+                            "text_expansion": {
+                                "query_expansion": query_embedding,
+                                "model_id": ".elser_model_2"
+                            }
+                        }
+                    },
+                    "size": top_k,
+                    "_source": ["text", "content", "filename", "chunk_id", "file_url", "modified_time", "text_expansion"]
+                }
+            )
+            
+            results = []
+            for hit in response["hits"]["hits"]:
+                results.append({
+                    "content": hit["_source"].get("text", hit["_source"].get("content", "")),
+                    "filename": hit["_source"].get("filename", ""),
+                    "chunk_id": hit["_source"].get("chunk_id", ""),
+                    "file_url": hit["_source"].get("file_url", ""),
+                    "modified_time": hit["_source"].get("modified_time", ""),
+                    "_score": hit["_score"],
+                    "_source": hit["_source"],
+                    "search_type": "elser"
+                })
+            
+            logger.info(f"ELSER search returned {len(results)} results")
+            return results
+            
+        except Exception as e:
+            logger.error(f"ELSER search failed: {e}")
+            return []
+
+    def _generate_elser_query_embedding(self, query: str) -> Optional[Dict]:
+        """Generate ELSER embedding for the query using the inference pipeline."""
+        try:
+            # Use the ELSER pipeline to generate query embedding
+            response = self.es_client.client.ingest.simulate(
+                id="elser_pipeline",
+                body={
+                    "docs": [
+                        {
+                            "_source": {
+                                "text": query
+                            }
+                        }
+                    ]
+                }
+            )
+            
+            if response and "docs" in response:
+                first_doc = response["docs"][0]
+                if "_source" in first_doc and "text_expansion" in first_doc["_source"]:
+                    return first_doc["_source"]["text_expansion"]
+            
+            logger.warning("Failed to generate ELSER query embedding")
+            return None
+            
+        except Exception as e:
+            logger.error(f"ELSER query embedding generation failed: {e}")
+            return None
 
     def reciprocal_rank_fusion(self, results_lists: List[List[Dict]], k: int = 60) -> List[Dict]:
         """Combine multiple result lists using Reciprocal Rank Fusion."""
