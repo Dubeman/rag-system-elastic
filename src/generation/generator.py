@@ -4,6 +4,7 @@ import logging
 from typing import Dict, List, Optional
 
 from .llm_client import LLMClient
+from .guardrails import ContentSafetyGuardrails
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,7 @@ class AnswerGenerator:
 
     def __init__(self, llm_client: LLMClient):
         self.llm_client = llm_client
+        self.guardrails = ContentSafetyGuardrails()  # Add this line
 
     def check_context_relevance(self, query: str, contexts: List[Dict]) -> bool:
         """Check if retrieved contexts are actually relevant to the query."""
