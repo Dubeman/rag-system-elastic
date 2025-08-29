@@ -323,33 +323,8 @@ curl -X POST "http://localhost:8000/query" \
 
 ## 📊 Performance Targets
 
-- **Latency**: ≤ 3 seconds end-to-end
-- **Accuracy**: Measured via human evaluation
-- **Availability**: 99.9% uptime
-- **Scalability**: Handles 100+ concurrent users
+- **Latency**: ≤ 3 seconds end-to-end : Curent ~ 1 minute
 
-## 🔄 Development Phases
-
-### ✅ Phase 1: Foundation & Design
-- [x] Architecture design
-- [x] Tech stack selection
-- [x] Project structure setup
-
-### 🚧 Phase 2: Core Implementation
-- [x] Ingestion pipeline
-- [x] Elasticsearch indexing
-- [x] Hybrid retrieval
-- [x] LLM integration
-
-### 📋 Phase 3: API & UI
-- [x] FastAPI service
-- [x] Streamlit interface
-- [x] End-to-end testing
-
-### 🚀 Phase 4: Production Readiness
-- [x] Performance optimization
-- [x] Monitoring & logging
-- [x] Documentation completion
 
 ## 🐛 Troubleshooting
 
