@@ -16,6 +16,10 @@ This project implements a sophisticated RAG pipeline that combines multiple retr
 
 ## 🏗️ System Architecture
 
+![System Architecture](Hexaware%20internship.drawio.png)
+
+The system follows a modular microservices architecture:
+
 ```
 Google Drive PDFs → Ingestion → Elasticsearch → Retrieval → FastAPI → LLM → Answer + Citations → Streamlit UI
                                     ↓
@@ -37,7 +41,7 @@ Google Drive PDFs → Ingestion → Elasticsearch → Retrieval → FastAPI → 
 
 | Component | Technology | Rationale |
 |-----------|------------|-----------|
-| **Search Engine** | Elasticsearch | ELSER sparse embeddings + dense + BM25 |
+| **Search Engine** | Elasticsearch 8.11.0 | ELSER sparse embeddings + dense + BM25 |
 | **Embeddings** | `sentence-transformers/all-MiniLM-L6-v2` | Fast, efficient, free |
 | **LLM** | Llama-3/Mistral (HuggingFace/Ollama) | Open source, customizable |
 | **Backend** | FastAPI | Standard for ML services |
@@ -49,11 +53,11 @@ Google Drive PDFs → Ingestion → Elasticsearch → Retrieval → FastAPI → 
 
 ### Prerequisites
 
-- Docker & Docker Compose
-- Python 3.11+
-- Git
+- **Docker & Docker Compose** (v2.0+)
+- **At least 8GB RAM** (Elasticsearch + Ollama)
+- **Google Drive API credentials** (for PDF ingestion)
 
-### Setup
+### Docker Setup
 
 1. **Clone the repository**
    ```bash
@@ -63,24 +67,123 @@ Google Drive PDFs → Ingestion → Elasticsearch → Retrieval → FastAPI → 
 
 2. **Environment setup**
    ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
+   cp env.example .env
+   # Edit .env with your Google Drive credentials and folder ID
    ```
 
-3. **Start services**
+3. **Build and start all services**
    ```bash
-   docker-compose up -d
+   docker compose up --build -d
    ```
 
-4. **Install dependencies**
+4. **Monitor service startup**
    ```bash
-   pip install -r requirements.txt
+   docker compose logs -f
    ```
 
-5. **Initialize the system**
-   ```bash
-   python scripts/setup.py
-   ```
+5. **Wait for services to be ready**
+   - Elasticsearch: ~2-3 minutes (includes ELSER model download)
+   - Ollama: ~5-10 minutes (includes model download)
+   - API & UI: ~1 minute
+
+6. **Access the system**
+   - **API**: http://localhost:8000
+   - **UI**: http://localhost:8501
+   - **Elasticsearch**: http://localhost:9200
+   - **Ollama**: http://localhost:11434
+
+## 🔧 Docker Commands
+
+### Essential Commands
+```bash
+# Build and start all services
+docker compose up --build -d
+
+# Start services (if already built)
+docker compose up -d
+
+# Stop all services
+docker compose down
+
+# View logs
+docker compose logs -f
+
+# Restart specific service
+docker compose restart api
+docker compose restart ui
+
+# Check service status
+docker compose ps
+
+# Rebuild specific service
+docker compose build api
+docker compose build ui
+```
+
+### Service Management
+```bash
+# Start specific services
+docker compose up -d elasticsearch
+docker compose up -d api
+docker compose up -d ui
+docker compose up -d ollama
+
+# View logs for specific service
+docker compose logs elasticsearch
+docker compose logs api
+docker compose logs ui
+docker compose logs ollama
+
+# Execute commands inside containers
+docker compose exec api bash
+docker compose exec elasticsearch bash
+```
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+Copy `env.example` to `.env` and configure:
+
+```bash
+# Elasticsearch Configuration
+ELASTICSEARCH_URL=http://localhost:9200
+ELASTICSEARCH_INDEX=rag_documents
+
+# Google Drive API Configuration
+GOOGLE_DRIVE_CREDENTIALS_PATH=./credentials/google_drive_credentials.json
+GOOGLE_DRIVE_FOLDER_ID=your_folder_id_here
+
+# LLM Configuration
+LLM_MODEL_NAME=microsoft/DialoGPT-medium
+LLM_MAX_LENGTH=512
+LLM_TEMPERATURE=0.1
+HF_HOME=./models
+
+# API Configuration
+API_HOST=0.0.0.0
+API_PORT=8000
+API_WORKERS=1
+
+# UI Configuration
+STREAMLIT_HOST=0.0.0.0
+STREAMLIT_PORT=8501
+
+# Retrieval Configuration
+DEFAULT_TOP_K=5
+RRF_RANK_CONSTANT=60
+CHUNK_SIZE=300
+CHUNK_OVERLAP=50
+
+# Logging
+LOG_LEVEL=INFO
+LOG_FORMAT=json
+
+# Environment
+ENVIRONMENT=development
+```
+
+
 
 ## 📁 Project Structure
 
@@ -97,6 +200,7 @@ rag-system-elastic/
 ├── docker/                 # Docker configurations
 ├── scripts/                # Setup and utility scripts
 ├── docs/                   # Documentation
+├── data/                   # Data storage
 ├── requirements.txt        # Python dependencies
 ├── docker-compose.yml      # Service orchestration
 ├── .pre-commit-config.yaml # Code quality hooks
@@ -119,7 +223,15 @@ pre-commit install
 Run the test suite:
 
 ```bash
+# Run all tests
 pytest tests/ -v --cov=src/
+
+# Run specific test categories
+pytest tests/unit/ -v
+pytest tests/integration/ -v
+
+# Run with coverage report
+pytest tests/ --cov=src/ --cov-report=html
 ```
 
 ### Adding New Features
@@ -150,19 +262,37 @@ curl -X POST "http://localhost:8000/query" \
 curl -X POST "http://localhost:8000/ingest" \
      -H "Content-Type: application/json" \
      -d '{"source": "google_drive", "folder_id": "your-folder-id"}'
+
+# Health check
+curl "http://localhost:8000/healthz"
 ```
 
-### 🔧 Terminal Testing Commands
+### 🔧 Testing Commands
 
-For comprehensive Docker and curl commands for testing and troubleshooting, see: **[docker_curl_commands.txt](docker_curl_commands.txt)**
+For comprehensive testing commands, see: **[docker_curl_commands.txt](docker_curl_commands.txt)**
 
-This file contains:
-- Complete Docker Compose operations
-- Individual container management
-- Service health checks
-- API testing examples
-- Troubleshooting commands
-- Development workflow commands
+Key working test examples:
+```bash
+# Test with BM25 only
+curl -X POST "http://localhost:8000/query" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "What is a Dockerfile and how does it work?",
+    "search_mode": "bm25_only",
+    "top_k": 5,
+    "generate_answer": true
+  }'
+
+# Test with full hybrid search
+curl -X POST "http://localhost:8000/query" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "What are CSRF tokens in the FortiOS REST API reference?",
+    "search_mode": "full_hybrid",
+    "top_k": 5,
+    "generate_answer": true
+  }'
+```
 
 ## 🎛️ Configuration
 
@@ -204,20 +334,87 @@ This file contains:
 - [x] Project structure setup
 
 ### 🚧 Phase 2: Core Implementation
-- [ ] Ingestion pipeline
-- [ ] Elasticsearch indexing
-- [ ] Hybrid retrieval
-- [ ] LLM integration
+- [x] Ingestion pipeline
+- [x] Elasticsearch indexing
+- [x] Hybrid retrieval
+- [x] LLM integration
 
 ### 📋 Phase 3: API & UI
-- [ ] FastAPI service
-- [ ] Streamlit interface
-- [ ] End-to-end testing
+- [x] FastAPI service
+- [x] Streamlit interface
+- [x] End-to-end testing
 
 ### 🚀 Phase 4: Production Readiness
-- [ ] Performance optimization
-- [ ] Monitoring & logging
-- [ ] Documentation completion
+- [x] Performance optimization
+- [x] Monitoring & logging
+- [x] Documentation completion
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+1. **Elasticsearch won't start**
+   ```bash
+   # Check system resources
+   docker system df
+   docker stats
+   
+   # Increase Docker memory limit to 8GB+
+   # Restart Docker Desktop
+   ```
+
+2. **ELSER model download issues**
+   ```bash
+   # Check Elasticsearch logs
+   docker compose logs elasticsearch
+   
+   # Verify internet connection
+   # Check available disk space
+   ```
+
+3. **Ollama model issues**
+   ```bash
+   # Check Ollama logs
+   docker compose logs ollama
+   
+   # Check available models
+   curl http://localhost:11434/api/tags
+   
+   # Pull model manually
+   curl -X POST "http://localhost:11434/api/pull" \
+        -H "Content-Type: application/json" \
+        -d '{"name": "tinyllama"}'
+   ```
+
+4. **API connection errors**
+   ```bash
+   # Check service health
+   docker compose ps
+   
+   # Verify network connectivity
+   docker network ls
+   docker network inspect rag-system-elastic_rag-network
+   ```
+
+### Service Health Checks
+
+```bash
+# Check all services
+docker compose ps
+
+# Check specific service logs
+docker compose logs elasticsearch
+docker compose logs api
+docker compose logs ui
+docker compose logs ollama
+
+# Restart specific service
+docker compose restart api
+
+# Full system restart
+docker compose down
+docker compose up --build -d
+```
 
 ## 🤝 Contributing
 
