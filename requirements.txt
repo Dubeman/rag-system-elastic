@@ -41,9 +41,9 @@ flake8==6.1.0
 pre-commit==3.6.0
 
 # LangChain for enhanced chunking (install separately for testing)
-# langchain==0.3.7
-# langchain-community==0.3.6
-# langchain-text-splitters==0.3.0
+langchain==0.3.7
+langchain-community==0.3.6
+langchain-text-splitters==0.3.0
 
 # Optional: For local LLM inference
 # ollama==0.1.7  # Uncomment if using Ollama

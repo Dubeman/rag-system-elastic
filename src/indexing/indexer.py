@@ -159,8 +159,8 @@ class DocumentIndexer:
         
         # Generate all ELSER embeddings in one call
         logger.info(f"Generating ELSER embeddings for {len(chunks)} chunks in batch...")
-        # elser_embeddings = self.generate_elser_embeddings_batch(texts)
-        # logger.info(f"ELSER batch processing complete: {len([e for e in elser_embeddings if e])} successful, {len([e for e in elser_embeddings if not e])} failed")
+        elser_embeddings = self.generate_elser_embeddings_batch(texts)
+        logger.info(f"ELSER batch processing complete: {len([e for e in elser_embeddings if e])} successful, {len([e for e in elser_embeddings if not e])} failed")
 
         indexed_count = 0
         error_count = 0
@@ -195,9 +195,9 @@ class DocumentIndexer:
                 }
                 
                 # Add ELSER embedding if available
-                # if elser_embeddings[i]:
-                #     doc["text_expansion"] = elser_embeddings[i]
-                #     logger.debug(f"Added ELSER embedding with {len(elser_embeddings[i].get('tokens', {}))} tokens")
+                if elser_embeddings[i]:
+                    doc["text_expansion"] = elser_embeddings[i]
+                    logger.debug(f"Added ELSER embedding with {len(elser_embeddings[i].get('predicted_value', {}))} tokens")
 
                 response = self.es_client.client.index(
                     index=self.index_name,

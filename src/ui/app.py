@@ -825,15 +825,15 @@ def main():
                     
                     # Metadata in columns with proper styling
                     col1, col2, col3 = st.columns(3)
-                    with col1:
+                with col1:
                         st.markdown(f'<div class="result-metadata"><strong>File:</strong> {result.get("filename", "Unknown")}</div>', unsafe_allow_html=True)
-                    with col2:
-                        st.markdown(f'<div class="result-metadata"><strong>Chunk ID:</strong> {result.get("chunk_id", "N/A")}</div>', unsafe_allow_html=True)
-                    with col3:
-                        st.markdown(f'<div class="result-metadata"><strong>Search Type:</strong> {result.get("search_type", "Unknown")}</div>', unsafe_allow_html=True)
-                    
-                    # Source link with proper styling
-                    if result.get('file_url'):
+                with col2:
+                    st.markdown(f'<div class="result-metadata"><strong>Chunk ID:</strong> {result.get("chunk_id", "N/A")}</div>', unsafe_allow_html=True)
+                with col3:
+                    st.markdown(f'<div class="result-metadata"><strong>Search Type:</strong> {result.get("search_type", "Unknown")}</div>', unsafe_allow_html=True)
+                
+                # Source link with proper styling
+                if result.get('file_url'):
                         st.markdown(f'<div class="result-metadata"><strong>Source:</strong> <a href="{result.get("file_url", "")}" target="_blank">{result.get("file_url", "")}</a></div>', unsafe_allow_html=True)
         
         # Clear results button
