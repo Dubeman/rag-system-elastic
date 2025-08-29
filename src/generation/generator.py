@@ -4,7 +4,7 @@ import logging
 from typing import Dict, List, Optional
 
 from .llm_client import LLMClient
-from .guardrails import ContentSafetyGuardrails
+from ..guardrails.guardrails import ContentSafetyGuardrails
 
 logger = logging.getLogger(__name__)
 

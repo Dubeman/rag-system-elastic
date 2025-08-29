@@ -1,18 +1,9 @@
-"""Advanced guardrails using Outer SDK for RAG system."""
+"""Simplified guardrails for RAG system without external dependencies."""
 
 from typing import Dict, List, Optional
-from guardrails import Guard
-from guardrails.validators import ValidLength, ValidRange, ValidChoices
-from pydantic import BaseModel, Field
 import logging
 
 logger = logging.getLogger(__name__)
-
-class QueryGuardrails(BaseModel):
-    """Guardrails for user queries."""
-    question: str = Field(..., min_length=3, max_length=1000)
-    top_k: int = Field(..., ge=1, le=20)
-    search_mode: str = Field(..., regex="^(bm25_only|dense_only|elser_only|dense_bm25|full_hybrid)$")
 
 class ContentSafetyGuardrails:
     """Content safety and moderation guardrails."""
@@ -23,15 +14,26 @@ class ContentSafetyGuardrails:
             'illegal', 'criminal', 'harmful', 'dangerous', 'toxic', 'poison',
             'kill', 'murder', 'suicide', 'terrorism', 'drugs', 'weapons'
         ]
-        
-        # Initialize Outer SDK guard
-        self.query_guard = Guard.from_pydantic(QueryGuardrails)
     
     def validate_query(self, query_data: Dict) -> Dict:
-        """Validate query using Outer SDK."""
+        """Validate query data."""
         try:
-            validated = self.query_guard(query_data)
-            return {"valid": True, "data": validated}
+            question = query_data.get('question', '')
+            top_k = query_data.get('top_k', 5)
+            search_mode = query_data.get('search_mode', 'dense_bm25')
+            
+            # Basic validation
+            if not question or len(question) < 3 or len(question) > 1000:
+                return {"valid": False, "error": "Question must be between 3 and 1000 characters"}
+            
+            if not isinstance(top_k, int) or top_k < 1 or top_k > 20:
+                return {"valid": False, "error": "top_k must be between 1 and 20"}
+            
+            valid_modes = ['bm25_only', 'dense_only', 'elser_only', 'dense_bm25', 'full_hybrid']
+            if search_mode not in valid_modes:
+                return {"valid": False, "error": f"search_mode must be one of {valid_modes}"}
+            
+            return {"valid": True, "data": query_data}
         except Exception as e:
             return {"valid": False, "error": str(e)}
     

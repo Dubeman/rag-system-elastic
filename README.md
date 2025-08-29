@@ -92,6 +92,16 @@ Google Drive PDFs → Ingestion → Elasticsearch → Retrieval → FastAPI → 
    - **Elasticsearch**: http://localhost:9200
    - **Ollama**: http://localhost:11434
 
+### 🖥️ User Interface
+
+![UI POC](ui%20poc.png)
+
+The system provides a clean Streamlit interface for:
+- **Document Ingestion**: Upload and process PDFs from Google Drive
+- **Query Interface**: Ask questions and get AI-generated answers with citations
+- **Search Results**: View retrieved documents and their relevance scores
+- **Response Generation**: Get detailed answers with proper source attribution
+
 ## 🔧 Docker Commands
 
 ### Essential Commands
