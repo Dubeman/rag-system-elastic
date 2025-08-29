@@ -65,10 +65,10 @@ Google Drive PDFs → Ingestion → Elasticsearch → Retrieval → FastAPI → 
    cd rag-system-elastic
    ```
 
-2. **Environment setup**
+2. **Environment setup (optional)**
    ```bash
    cp env.example .env
-   # Edit .env with your Google Drive credentials and folder ID
+   # Edit .env if you need custom settings (most have sensible defaults)
    ```
 
 3. **Build and start all services**
@@ -148,39 +148,29 @@ Copy `env.example` to `.env` and configure:
 ```bash
 # Elasticsearch Configuration
 ELASTICSEARCH_URL=http://localhost:9200
-ELASTICSEARCH_INDEX=rag_documents
-
-# Google Drive API Configuration
-GOOGLE_DRIVE_CREDENTIALS_PATH=./credentials/google_drive_credentials.json
-GOOGLE_DRIVE_FOLDER_ID=your_folder_id_here
 
 # LLM Configuration
-LLM_MODEL_NAME=microsoft/DialoGPT-medium
-LLM_MAX_LENGTH=512
-LLM_TEMPERATURE=0.1
-HF_HOME=./models
+LLM_SERVICE_URL=http://ollama:11434
+LLM_MODEL_NAME=tinyllama
+LLM_TIMEOUT=180
+```
 
-# API Configuration
-API_HOST=0.0.0.0
-API_PORT=8000
-API_WORKERS=1
+**Note**: Most configuration is handled automatically with sensible defaults. The system works out-of-the-box with minimal setup.
 
-# UI Configuration
-STREAMLIT_HOST=0.0.0.0
-STREAMLIT_PORT=8501
+### Google Drive Setup
 
-# Retrieval Configuration
-DEFAULT_TOP_K=5
-RRF_RANK_CONSTANT=60
-CHUNK_SIZE=300
-CHUNK_OVERLAP=50
+The system automatically uses public Google Drive access, so no credentials are required. Simply:
 
-# Logging
-LOG_LEVEL=INFO
-LOG_FORMAT=json
+1. **Upload PDFs to a Google Drive folder**
+2. **Make the folder public** (or share with "Anyone with the link can view")
+3. **Use the folder ID in your API requests**
 
-# Environment
-ENVIRONMENT=development
+**Example usage:**
+```bash
+# Ingest documents from a public Google Drive folder
+curl -X POST "http://localhost:8000/ingest" \
+     -H "Content-Type: application/json" \
+     -d '{"source": "google_drive", "folder_id": "your-folder-id"}'
 ```
 
 
@@ -307,10 +297,12 @@ curl -X POST "http://localhost:8000/query" \
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `chunk_size` | 300 | Token chunk size for documents |
-| `top_k` | 5 | Number of documents to retrieve |
-| `rrf_rank_constant` | 60 | RRF fusion parameter |
-| `temperature` | 0.1 | LLM generation temperature |
+| `chunk_size` | 300 | Token chunk size for documents (hardcoded) |
+| `top_k` | 5 | Number of documents to retrieve (configurable via API) |
+| `rrf_rank_constant` | 60 | RRF fusion parameter (hardcoded) |
+| `temperature` | 0.1 | LLM generation temperature (hardcoded) |
+
+**Note**: Most parameters have sensible defaults and are hardcoded for optimal performance. Customization is available through API parameters when needed.
 
 ## 🛡️ Guardrails & Safety
 
@@ -416,31 +408,4 @@ docker compose down
 docker compose up --build -d
 ```
 
-## 🤝 Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Elasticsearch team for ELSER technology
-- HuggingFace for open-source transformer models
-- The open-source ML community
-
-## 📞 Support
-
-For questions or support:
-- Create an issue on GitHub
-- Check the [documentation](docs/)
-- Review the [FAQ](docs/FAQ.md)
-
----
-
-*Built with ❤️ using modern AI/ML engineering practices*
