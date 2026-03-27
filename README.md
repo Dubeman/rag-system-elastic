@@ -32,8 +32,31 @@ Given a document collection (PDFs from Google Drive), the system:
 - Ollama (local LLM serving)
 - Docker Compose (reproducible setup)
 
+## Versions and migration (v1 vs v2)
+
+Active development for **vision-native document intelligence** happens on branch **`feat/vision-v2`**.
+
+| Tag | Meaning |
+|-----|---------|
+| `v1.0-baseline` | Text-first Elasticsearch hybrid RAG + Ollama (comparison baseline) |
+| `v2.0-vision` | Vision pipeline scaffolding (ColPali-style + FAISS + RunPod VLM hook); re-tag after benchmarks |
+
+Set **`PIPELINE_VERSION`** to `v1` (default) or `v2`. See [AGENTS.md](AGENTS.md) for model stack and agent conventions.
+
+### v1 vs v2 (high level)
+
+| | v1 (baseline) | v2 (vision-native) |
+|---|----------------|-------------------|
+| Ingestion | PDF text + chunking | PDF page rasterization (PyMuPDF) |
+| Retrieval | BM25 + dense + ELSER + RRF | ColPali-style embeddings + FAISS (mock ok for dev) |
+| Generation | Ollama LLM | Phi-3.5-vision / SmolVLM via `RUNPOD_VLM_URL` (stub if unset) |
+| API flag | `PIPELINE_VERSION=v1` or `pipeline_version` in JSON body | same, use `v2` |
+
+Endpoints: `POST /ingest`, `POST /query` (pass `"pipeline_version": "v2"`), `GET /metrics` (Prometheus), `GET /healthz` (includes `vision_v2`).
+
 ## Repository layout
 
+- `src/v2/`: vision-native ingestion, FAISS retrieval, RunPod VLM client, eval helpers
 - `src/ingestion/`: PDF ingestion + chunking
 - `src/indexing/`: indexing/index rebuild logic for Elasticsearch
 - `src/retrieval/`: hybrid retrieval + fusion strategies
@@ -75,9 +98,10 @@ Prerequisites:
 
 ## API endpoints
 
-- `POST /query`: question -> answer (+ citations)
-- `POST /ingest`: ingest/reindex documents
-- `GET /healthz`: health check
+- `POST /query`: question -> answer (+ citations); optional `"pipeline_version": "v2"`
+- `POST /ingest`: ingest/reindex documents; optional `"pipeline_version": "v2"`
+- `GET /healthz`: health check (includes Elasticsearch, LLM, vision v2)
+- `GET /metrics`: Prometheus metrics (latency histogram `http_request_duration_seconds`)
 
 ## Performance note
 

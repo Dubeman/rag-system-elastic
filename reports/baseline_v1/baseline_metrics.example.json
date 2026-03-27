@@ -1,0 +1,22 @@
+{
+  "date": "2026-03-27",
+  "git_ref": "v1.0-baseline",
+  "pipeline_version": "v1",
+  "environment": "docker-compose local",
+  "query_latency_ms": {
+    "p50": null,
+    "p95": null,
+    "notes": "Fill from request_summary logs or load test"
+  },
+  "ingest_latency_ms": {
+    "p50": null,
+    "p95": null
+  },
+  "quality": {
+    "metric": "manual_or_offline_eval",
+    "value": null
+  },
+  "validation_queries": [
+    "What is a Dockerfile and how does it work?"
+  ]
+}
