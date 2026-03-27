@@ -125,6 +125,7 @@ Prerequisites:
 ## Development
 
 - Code quality: pre-commit hooks (`.pre-commit-config.yaml`)
+- **Smoke (simple infra):** [reports/SMOKE_RUNBOOK.md](reports/SMOKE_RUNBOOK.md) — install, v2 mock E2E, optional mock VLM / real embed server; run `bash scripts/smoke_infra.sh` for pytest + offline eval.
 - Tests:
   ```bash
   pytest tests/ -v --cov=src/
