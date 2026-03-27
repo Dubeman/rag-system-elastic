@@ -33,6 +33,7 @@ google-auth-oauthlib==1.1.0
 # Vision v2 (page images, FAISS, metrics)
 pymupdf==1.24.14
 faiss-cpu>=1.7.4,<1.9
+qdrant-client>=1.7.0
 prometheus-client==0.20.0
 # peft: optional; install for scripts/train_lora.py (see script docstring)
 

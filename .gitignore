@@ -30,6 +30,7 @@ wheels/
 
 # v2 runtime artifacts (page images, FAISS index)
 data/v2/
+adapters/
 
 # Environments
 .env
