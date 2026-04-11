@@ -1,0 +1,32 @@
+---
+description: Vision v2 north star — target architecture for all agents
+alwaysApply: true
+---
+
+# Vision v2 north star — agent rules
+
+Read **`reports/VISION_V2_NORTHSTAR.md`** for the full picture. When in doubt, align implementation toward that document.
+
+## Target architecture
+
+- **v2 flow:** PDF → page images → **ColPali-class** embeddings → **FAISS or Qdrant** (not Elasticsearch) → **HTTP VLM** (`RUNPOD_VLM_URL` / OpenAI compat).
+- **v1 flow:** Elasticsearch hybrid + Ollama — **preserve** unless benchmarks justify removal; do not conflate v1 index design with v2 vector storage.
+
+## Do
+
+- **Separate concerns:** embeddings (embed server / `COLPALI_EMBED_URL` or local `colpali-engine`) vs **answering** (VLM URL). They are different services.
+- **Prefer `V2_DATA_DIR`** for page images and vector state; respect **`embedding_meta.json`** — changing embedder or backend invalidates the index.
+- **Instrument** `pipeline_version`, `request_id`, and stage timings when touching API or v2 paths.
+- **Ship vertical slices:** working retrieval before polishing MaxSim or multi-vector.
+
+## Don’t
+
+- **Don’t** model v2 page vectors as an Elasticsearch index problem (Elasticsearch is for **v1** and health in the current monolith).
+- **Don’t** block v2 progress on ELSER/ELSER pipelines or full `rag_documents` mapping unless the task is explicitly v1.
+- **Don’t** silently expand scope into multi-vector MaxSim without an explicit task or backlog item — it’s a **large** change.
+
+## Gaps to close over time (not blockers for every PR)
+
+- Multi-vector **MaxSim** vs mean-pooled vectors (see `reports/OPTIMIZE_BACKLOG.md`).
+- Optional **v2-only** API process (no ES) if product requires it.
+- **PDF upload** endpoint if needed for UX.

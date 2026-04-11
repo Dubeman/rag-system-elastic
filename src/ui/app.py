@@ -1,642 +1,413 @@
 """
-Luthro - Advanced RAG Search System
-Clean, modern design with light blue theme and professional search components.
+Luthro — enterprise-style Streamlit UI for the RAG console.
 """
 
+import html
 import streamlit as st
 import requests
-import time
-from typing import Dict, List, Optional
-import json
+from typing import Dict
 
-# Page configuration
+# -----------------------------------------------------------------------------
+# Page
+# -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Luthro - AI Search",
-    page_icon="🔍",
+    page_title="Luthro · Document Intelligence",
+    page_icon="◆",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed",
 )
 
-# Custom CSS for enhanced Luthro styling
-st.markdown("""
+# Fonts + design system (no global * { color } — avoids fighting Streamlit widgets)
+st.markdown(
+    """
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
 <style>
-    /* Global background */
-    .main {
-        background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 50%, #e0f7fa 100%);
-        min-height: 100vh;
+    :root {
+        --l-bg: #f1f5f9;
+        --l-bg-subtle: #e8edf3;
+        --l-surface: #ffffff;
+        --l-elevated: #fafbfc;
+        --l-border: #e2e8f0;
+        --l-border-strong: #cbd5e1;
+        --l-text: #0f172a;
+        --l-text-muted: #64748b;
+        --l-accent: #1d4ed8;
+        --l-accent-hover: #1e40af;
+        --l-accent-soft: rgba(29, 78, 216, 0.08);
+        --l-success: #059669;
+        --l-success-bg: #ecfdf5;
+        --l-danger: #dc2626;
+        --l-danger-bg: #fef2f2;
+        --l-radius: 14px;
+        --l-radius-sm: 10px;
+        --l-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.06);
+        --l-shadow-lg: 0 4px 6px rgba(15, 23, 42, 0.04), 0 24px 48px rgba(15, 23, 42, 0.08);
+        --l-font: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+        --l-serif: "Source Serif 4", Georgia, serif;
     }
-    
-    /* Header styling with better alignment and contrast */
-    .luthro-header {
-        font-size: 3rem;
-        font-weight: 800;
+
+    html, body, [data-testid="stAppViewContainer"] {
+        font-family: var(--l-font);
+        color: var(--l-text);
+    }
+
+    .stApp {
+        background: linear-gradient(165deg, var(--l-bg) 0%, var(--l-bg-subtle) 45%, #eef2f7 100%);
+    }
+
+    #MainMenu { visibility: hidden; }
+    footer { visibility: hidden; }
+    header[data-testid="stHeader"] { background: transparent; }
+
+    .main .block-container {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 1.75rem 1.5rem 3rem;
+    }
+
+    /* Hero */
+    .luthro-hero {
         text-align: center;
-        margin: 0 auto 1rem auto;
-        color: #1e293b;
-        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        display: block;
-        width: 100%;
-    }
-    
-    .luthro-subtitle {
-        text-align: center;
-        color: #475569;
-        font-size: 1.2rem;
-        margin: 0 auto 1.5rem auto;
-        font-weight: 500;
-        display: block;
-        width: 100%;
-    }
-    
-    /* Container styling with better alignment and contrast */
-    .luthro-container {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(10px);
-        border-radius: 20px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        padding: 2rem;
-        margin: 0 auto 2rem auto;
-        width: 100%;
-        box-sizing: border-box;
-    }
-    
-    .link-container {
-        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-        padding: 1.5rem;
-        border-radius: 16px;
-        border: 2px dashed #0ea5e9;
-        margin: 0 auto 1rem auto;
-        box-shadow: 0 4px 16px rgba(14, 165, 233, 0.1);
-        width: 100%;
-        box-sizing: border-box;
-    }
-    
-    .search-container {
-        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-        padding: 2.5rem;
-        border-radius: 20px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-        border: 1px solid rgba(14, 165, 233, 0.1);
-        margin: 0 auto 2rem auto;
-        width: 100%;
-        box-sizing: border-box;
-    }
-    
-    .results-container {
-        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-        padding: 2rem;
-        border-radius: 16px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-        border: 1px solid rgba(14, 165, 233, 0.1);
-        width: 100%;
-        box-sizing: border-box;
-    }
-    
-    /* Enhanced search bar styling with better alignment and contrast */
-    .stTextInput {
-        width: 100%;
-        margin-bottom: 1rem;
-    }
-    
-    .stTextInput > div > div > input {
-        border-radius: 12px;
-        border: 2px solid #e2e8f0;
-        padding: 1rem 1.5rem;
-        font-size: 1.1rem;
-        background: white;
-        transition: all 0.3s ease;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-        width: 100%;
-        box-sizing: border-box;
-        color: #334155;
-        caret-color: #0ea5e9;
-        outline: none;
-    }
-    
-    .stTextInput > div > div > input:focus {
-        border-color: #0ea5e9;
-        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
-        outline: none;
-        background: #ffffff;
-        caret-color: #0ea5e9;
-    }
-    
-    .stTextInput > div > div > input:hover {
-        border-color: #0284c7;
-        box-shadow: 0 4px 12px rgba(14, 165, 233, 0.15);
-    }
-    
-    .stTextInput > div > div > input::placeholder {
-        color: #94a3b8;
-    }
-    
-    /* Enhanced dropdown styling with better alignment and contrast */
-    .stSelectbox {
-        width: 100%;
-        margin-bottom: 1rem;
-    }
-    
-    .stSelectbox > div > div {
-        border-radius: 12px;
-        border: 2px solid #e2e8f0;
-        background: white;
-        transition: all 0.3s ease;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-        width: 100%;
-        box-sizing: border-box;
-        color: #334155;
-    }
-    
-    .stSelectbox > div > div:hover {
-        border-color: #0284c7;
-        box-shadow: 0 4px 12px rgba(14, 165, 233, 0.15);
-    }
-    
-    /* Button styling with better alignment and contrast */
-    .luthro-button-primary {
-        background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-        color: white;
-        border: none;
-        padding: 1rem 2rem;
-        border-radius: 12px;
-        font-weight: 600;
-        font-size: 1.1rem;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 16px rgba(14, 165, 233, 0.3);
-        width: 100%;
-        box-sizing: border-box;
-    }
-    
-    .luthro-button-primary:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(14, 165, 233, 0.4);
-    }
-    
-    .luthro-button-success {
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-        color: white;
-        border: none;
-        padding: 1rem 1.5rem;
-        border-radius: 12px;
-        font-weight: 600;
-        font-size: 1rem;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
-        width: 100%;
-        box-sizing: border-box;
-    }
-    
-    .luthro-button-success:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
-    }
-    
-    .luthro-button-secondary {
-        background: linear-gradient(135deg, #64748b 0%, #475569 100%);
-        color: white;
-        border: none;
-        padding: 0.75rem 1.5rem;
-        border-radius: 10px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        box-shadow: 0 2px 8px rgba(100, 116, 139, 0.2);
-        width: 100%;
-        box-sizing: border-box;
-    }
-    
-    .luthro-button-secondary:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(100, 116, 139, 0.3);
-    }
-    
-    /* Result card styling with better alignment and contrast */
-    .result-card {
-        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-        padding: 1.5rem;
-        border-radius: 12px;
-        margin-bottom: 1rem;
-        border-left: 4px solid #0ea5e9;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-        transition: all 0.3s ease;
-        width: 100%;
-        box-sizing: border-box;
-        color: #334155;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        line-height: 1.6;
-    }
-    
-    .result-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-    }
-    
-    /* AI answer styling with better alignment and contrast */
-    .ai-answer {
-        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-        padding: 1.5rem;
-        border-radius: 12px;
-        border-left: 4px solid #0ea5e9;
-        margin: 1rem 0;
-        box-shadow: 0 2px 8px rgba(14, 165, 233, 0.1);
-        width: 100%;
-        box-sizing: border-box;
-        color: #1e293b;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        font-size: 1rem;
-        line-height: 1.7;
-        font-weight: 400;
-    }
-    
-    /* Mode badge styling with better alignment and contrast */
-    .mode-badge {
-        background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-size: 0.9rem;
-        font-weight: 600;
-        display: inline-block;
-        margin: 0 auto 1rem auto;
-        box-shadow: 0 2px 8px rgba(14, 165, 233, 0.2);
-        text-align: center;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
-    
-    /* Progress and status styling with better alignment and contrast */
-    .status-success {
-        background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
-        border: 1px solid #22c55e;
-        color: #166534;
-        padding: 1rem;
-        border-radius: 12px;
-        margin: 1rem auto;
-        width: 100%;
-        box-sizing: border-box;
-        text-align: center;
-        font-weight: 500;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        font-size: 1rem;
-        line-height: 1.5;
-    }
-    
-    .status-error {
-        background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
-        border: 1px solid #ef4444;
-        color: #991b1b;
-        padding: 1rem;
-        border-radius: 12px;
-        margin: 1rem auto;
-        width: 100%;
-        box-sizing: border-box;
-        text-align: center;
-        font-weight: 500;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        font-size: 1rem;
-        line-height: 1.5;
-    }
-    
-    /* Input labels with better alignment and contrast */
-    .stTextInput > label {
-        font-weight: 600;
-        color: #334155;
+        padding: 2.25rem 1rem 2.5rem;
         margin-bottom: 0.5rem;
-        font-size: 1rem;
-        display: block;
-        width: 100%;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
-    
-    .stSelectbox > label {
-        font-weight: 600;
-        color: #334155;
-        margin-bottom: 0.5rem;
-        font-size: 1rem;
-        display: block;
-        width: 100%;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
-    
-    /* Column alignment fixes */
-    .row-widget.stHorizontal {
-        gap: 1rem;
-        align-items: stretch;
-    }
-    
-    .row-widget.stHorizontal > div {
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-        align-items: stretch;
-    }
-    
-    /* Streamlit specific fixes */
-    .stButton > button {
-        width: 100%;
-        margin: 0;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
-    
-    /* Better spacing for containers */
-    .element-container {
+    .luthro-hero__brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
         margin-bottom: 1rem;
     }
-    
-    /* Fix for expander alignment and contrast */
-    .streamlit-expanderHeader {
-        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-        border-radius: 8px;
-        border: 1px solid #e2e8f0;
-        color: #334155;
-        font-weight: 600;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    .luthro-hero__mark {
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        background: linear-gradient(145deg, var(--l-accent) 0%, #312e81 100%);
+        box-shadow: 0 8px 20px rgba(29, 78, 216, 0.35);
     }
-    
-    /* Ensure expander headers are visible */
-    .streamlit-expanderHeader > div {
-        color: #1e293b !important;
-        font-weight: 600 !important;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-    }
-    
-    /* Target the expander header text specifically */
-    .streamlit-expanderHeader span {
-        color: #1e293b !important;
-        font-weight: 600 !important;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-    }
-    
-    /* Ensure all expander elements are visible */
-    .streamlit-expanderHeader * {
-        color: #1e293b !important;
-        font-weight: 600 !important;
-    }
-    
-    /* Additional expander styling for better visibility */
-    .streamlit-expanderHeader:hover {
-        background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
-        border-color: #0ea5e9;
-    }
-    
-    /* Ensure expander content is also visible */
-    .streamlit-expanderContent {
-        color: #334155;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
-    
-    /* Ensure all text has good contrast */
-    .stMarkdown {
-        color: #334155;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        line-height: 1.6;
-    }
-    
-    .stSubheader {
-        color: #1e293b;
-        font-weight: 600;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
-    
-    .stHeader {
-        color: #1e293b;
+    .luthro-hero__title {
+        font-family: var(--l-font);
+        font-size: clamp(2rem, 4vw, 2.75rem);
         font-weight: 700;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        letter-spacing: -0.03em;
+        color: var(--l-text);
+        margin: 0 0 0.5rem 0;
+        line-height: 1.15;
     }
-    
-    /* Better contrast for help text */
-    .stMarkdown p {
-        color: #475569;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        line-height: 1.6;
+    .luthro-hero__title span {
+        background: linear-gradient(90deg, #1e40af, #4338ca);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
     }
-    
-    /* Ensure buttons have good text contrast */
-    .stButton > button {
-        color: white;
+    .luthro-hero__tagline {
+        font-size: 1.05rem;
+        color: var(--l-text-muted);
+        font-weight: 500;
+        max-width: 32rem;
+        margin: 0 auto;
+        line-height: 1.55;
+    }
+
+    .luthro-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.75rem;
         font-weight: 600;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--l-success);
+        background: var(--l-surface);
+        border: 1px solid rgba(5, 150, 105, 0.25);
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        box-shadow: var(--l-shadow);
     }
-    
-    /* Fix for section headers to ensure they stand out */
-    .stSubheader, .stHeader, h1, h2, h3, h4, h5, h6 {
-        color: #1e293b !important;
-        font-weight: 600 !important;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    .luthro-pill::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #10b981;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
     }
-    
-    /* Ensure Streamlit subheaders are visible */
-    .stSubheader {
-        color: #1e293b !important;
-        font-weight: 600 !important;
-        font-size: 1.5rem !important;
-        margin-bottom: 1rem !important;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+
+    /* Section headers (widgets follow in flow — do not wrap in a fake card) */
+    .luthro-section-header {
+        margin: 1.75rem 0 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--l-border);
     }
-    
-    /* Make sure all headings are visible */
-    h1, h2, h3 {
-        color: #1e293b !important;
-        font-weight: 700 !important;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    .luthro-section-header:first-of-type { margin-top: 0; }
+    .luthro-section__kicker {
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--l-accent);
+        margin: 0 0 0.25rem 0;
     }
-    
-    /* Citation and content text styling */
-    .result-content {
-        color: #334155;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        font-size: 0.95rem;
-        line-height: 1.6;
-        margin: 0.5rem 0;
+    .luthro-section__title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--l-text);
+        margin: 0;
+        letter-spacing: -0.02em;
     }
-    
-    .result-metadata {
-        color: #64748b;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    .luthro-section__desc {
         font-size: 0.9rem;
-        font-weight: 500;
-        margin: 0.25rem 0;
+        color: var(--l-text-muted);
+        margin: 0.35rem 0 0 0;
+        line-height: 1.45;
+        max-width: 40rem;
     }
-    
-    /* Link styling to ensure visibility */
+
+    hr.luthro-rule {
+        border: none;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--l-border-strong), transparent);
+        margin: 0.25rem 0 1.25rem;
+    }
+
+    /* Streamlit widgets */
+    .stTextInput label,
+    .stSelectbox label {
+        font-family: var(--l-font) !important;
+        font-weight: 600 !important;
+        font-size: 0.82rem !important;
+        color: var(--l-text) !important;
+        text-transform: none;
+        letter-spacing: 0;
+    }
+    .stTextInput input {
+        border-radius: var(--l-radius-sm) !important;
+        border: 1px solid var(--l-border) !important;
+        padding: 0.65rem 0.9rem !important;
+        font-size: 0.95rem !important;
+        color: var(--l-text) !important;
+        background: var(--l-elevated) !important;
+        box-shadow: none !important;
+    }
+    .stTextInput input:focus {
+        border-color: var(--l-accent) !important;
+        box-shadow: 0 0 0 3px var(--l-accent-soft) !important;
+        background: var(--l-surface) !important;
+    }
+    .stTextInput input::placeholder {
+        color: #94a3b8 !important;
+    }
+
+    .stSelectbox [data-baseweb="select"] > div {
+        border-radius: var(--l-radius-sm) !important;
+        border: 1px solid var(--l-border) !important;
+        background: var(--l-elevated) !important;
+        min-height: 42px;
+    }
+
+    /*
+     * Selectbox value + list: Streamlit/Baseweb theme often sets white text while we use a
+     * light control background — force readable foreground. Popover renders in a portal.
+     */
+    .stSelectbox [data-baseweb="select"] {
+        color: var(--l-text) !important;
+    }
+    .stSelectbox [data-baseweb="select"] [class*="singleValue"],
+    .stSelectbox [data-baseweb="select"] [class*="valueContainer"],
+    .stSelectbox [data-baseweb="select"] [class*="placeholder"] {
+        color: var(--l-text) !important;
+    }
+    .stSelectbox [data-baseweb="select"] div,
+    .stSelectbox [data-baseweb="select"] span,
+    .stSelectbox [data-baseweb="select"] p {
+        color: var(--l-text) !important;
+    }
+    .stSelectbox [data-baseweb="select"] svg {
+        fill: var(--l-text-muted) !important;
+    }
+
+    div[data-baseweb="popover"] ul,
+    div[data-baseweb="popover"] li,
+    div[data-baseweb="popover"] [role="option"] {
+        color: var(--l-text) !important;
+        background-color: var(--l-surface) !important;
+    }
+    div[data-baseweb="popover"] [aria-selected="true"],
+    div[data-baseweb="popover"] li[aria-selected="true"] {
+        background-color: var(--l-accent-soft) !important;
+        color: var(--l-text) !important;
+    }
+
+    .row-widget.stHorizontal { gap: 1rem !important; }
+
+    /* Primary buttons */
+    .stButton > button {
+        font-family: var(--l-font) !important;
+        font-weight: 600 !important;
+        border-radius: var(--l-radius-sm) !important;
+        padding: 0.55rem 1.1rem !important;
+        transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease !important;
+    }
+    .stButton > button,
+    .stButton > button:focus,
+    .stButton > button:active {
+        background: linear-gradient(180deg, #2563eb 0%, var(--l-accent) 100%) !important;
+        color: #fff !important;
+        border: 1px solid #1e3a8a !important;
+        box-shadow: 0 2px 4px rgba(29, 78, 216, 0.25) !important;
+    }
+    .stButton > button:hover {
+        background: linear-gradient(180deg, #3b82f6 0%, var(--l-accent-hover) 100%) !important;
+        box-shadow: 0 4px 14px rgba(29, 78, 216, 0.35) !important;
+    }
+    .stButton > button p,
+    .stButton > button span {
+        color: #fff !important;
+    }
+
+    /* Results */
+    .luthro-results {
+        background: var(--l-surface);
+        border: 1px solid var(--l-border);
+        border-radius: var(--l-radius);
+        box-shadow: var(--l-shadow-lg);
+        padding: 1.5rem 1.5rem 1.75rem;
+        margin-top: 1rem;
+    }
+    .luthro-results__title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--l-text);
+        margin: 0 0 0.75rem 0;
+        font-family: var(--l-font);
+    }
+    .luthro-badge {
+        display: inline-block;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--l-accent);
+        background: var(--l-accent-soft);
+        border: 1px solid rgba(29, 78, 216, 0.2);
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        margin-bottom: 1rem;
+    }
+    .luthro-ai {
+        font-family: var(--l-serif);
+        font-size: 1.05rem;
+        line-height: 1.75;
+        color: var(--l-text);
+        background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+        border: 1px solid var(--l-border);
+        border-left: 4px solid var(--l-accent);
+        border-radius: var(--l-radius-sm);
+        padding: 1.15rem 1.25rem;
+        margin: 0.5rem 0 1.25rem;
+    }
+    .luthro-inline-h3 {
+        font-family: var(--l-font);
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--l-text);
+        margin: 0.25rem 0 0.65rem;
+    }
+    .luthro-results h3 {
+        font-family: var(--l-font);
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--l-text);
+        margin: 1.25rem 0 0.75rem;
+    }
+
+    .result-content {
+        color: var(--l-text);
+        font-size: 0.92rem;
+        line-height: 1.65;
+        margin: 0.35rem 0 0.75rem;
+    }
+    .result-metadata {
+        color: var(--l-text-muted);
+        font-size: 0.85rem;
+        line-height: 1.5;
+    }
     .result-metadata a {
-        color: #0ea5e9 !important;
-        text-decoration: underline;
+        color: var(--l-accent) !important;
         font-weight: 600;
-        transition: all 0.3s ease;
+        text-decoration: none;
+        border-bottom: 1px solid rgba(29, 78, 216, 0.35);
     }
-    
     .result-metadata a:hover {
-        color: #0284c7 !important;
-        text-decoration: none;
+        color: var(--l-accent-hover) !important;
     }
-    
-    /* Ensure all links in results are visible */
-    .results-container a {
-        color: #0ea5e9 !important;
-        text-decoration: underline;
-        font-weight: 600;
+
+    .streamlit-expanderHeader {
+        background: var(--l-elevated) !important;
+        border-radius: var(--l-radius-sm) !important;
+        border: 1px solid var(--l-border) !important;
+        font-weight: 600 !important;
     }
-    
-    .results-container a:hover {
-        color: #0284c7 !important;
-        text-decoration: none;
+    .streamlit-expanderHeader:hover {
+        border-color: var(--l-border-strong) !important;
     }
-    
-    /* Error message styling */
-    .error-message {
-        background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
-        border: 1px solid #ef4444;
+    .streamlit-expanderHeader p,
+    .streamlit-expanderHeader span {
+        color: var(--l-text) !important;
+    }
+
+    .status-success {
+        background: var(--l-success-bg);
+        border: 1px solid rgba(5, 150, 105, 0.35);
+        color: #065f46;
+        padding: 0.85rem 1rem;
+        border-radius: var(--l-radius-sm);
+        font-weight: 500;
+        font-size: 0.92rem;
+        text-align: center;
+    }
+    .status-error {
+        background: var(--l-danger-bg);
+        border: 1px solid rgba(220, 38, 38, 0.35);
         color: #991b1b;
-        padding: 1rem;
-        border-radius: 12px;
-        margin: 1rem 0;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        font-size: 1rem;
-        line-height: 1.5;
+        padding: 0.85rem 1rem;
+        border-radius: var(--l-radius-sm);
         font-weight: 500;
+        font-size: 0.92rem;
+        text-align: center;
     }
-    
-    /* Success message styling */
-    .success-message {
-        background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
-        border: 1px solid #22c55e;
-        color: #166534;
-        padding: 1rem;
-        border-radius: 12px;
-        margin: 1rem 0;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        font-size: 1rem;
+
+    /* Alerts */
+    .stAlert { border-radius: var(--l-radius-sm) !important; }
+    [data-testid="stAlert"] p { color: inherit; }
+
+    /* Spinner */
+    .stSpinner > div { border-top-color: var(--l-accent) !important; }
+
+    /* Typography helpers */
+    .luthro-muted {
+        color: var(--l-text-muted);
+        font-size: 0.88rem;
         line-height: 1.5;
-        font-weight: 500;
-    }
-    
-    /* Comprehensive error and warning styling for ALL Streamlit alerts */
-    .stAlert {
-        color: #334155 !important;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-        font-weight: 500 !important;
-    }
-    
-    .stAlert * {
-        color: #334155 !important;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-    }
-    
-    /* Error message styling */
-    .stAlert[data-baseweb="notification"] {
-        color: #991b1b !important;
-        background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%) !important;
-        border: 1px solid #ef4444 !important;
-    }
-    
-    .stAlert[data-baseweb="notification"] * {
-        color: #991b1b !important;
-    }
-    
-    /* Warning message styling */
-    .stAlert[data-baseweb="toast"] {
-        color: #92400e !important;
-        background: linear-gradient(135deg, #fffbeb 0%, #fed7aa 100%) !important;
-        border: 1px solid #f59e0b !important;
-    }
-    
-    .stAlert[data-baseweb="toast"] * {
-        color: #92400e !important;
-    }
-    
-    /* Success message styling */
-    .stAlert[data-baseweb="banner"] {
-        color: #166534 !important;
-        background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%) !important;
-        border: 1px solid #22c55e !important;
-    }
-    
-    .stAlert[data-baseweb="banner"] * {
-        color: #166534 !important;
-    }
-    
-    /* Info message styling */
-    .stAlert[data-baseweb="inline"] {
-        color: #1e40af !important;
-        background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%) !important;
-        border: 1px solid #3b82f6 !important;
-    }
-    
-    .stAlert[data-baseweb="inline"] * {
-        color: #1e40af !important;
-    }
-    
-    /* Ensure all Streamlit elements are visible */
-    .stText, .stText * {
-        color: #334155 !important;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-    }
-    
-    /* Target specific error/warning elements */
-    .stAlert, .stAlert *, .stAlert > div, .stAlert > div * {
-        color: #334155 !important;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-        font-weight: 500 !important;
-    }
-    
-    /* Ensure no white text anywhere */
-    .stMarkdown *, .stText *, .stAlert *, .stSubheader *, .stHeader * {
-        color: inherit !important;
-    }
-    
-    /* Force visibility for all text elements */
-    * {
-        color: #334155 !important;
-    }
-    
-    /* Override any white text */
-    .stMarkdown, .stText, .stAlert, .stSubheader, .stHeader, p, span, div {
-        color: #334155 !important;
-    }
-    
-    /* Specific error styling for search errors and other notifications */
-    .stAlert, .stAlert *, .stAlert > div, .stAlert > div *,
-    .stAlert[data-baseweb="notification"], .stAlert[data-baseweb="notification"] *,
-    .stAlert[data-baseweb="toast"], .stAlert[data-baseweb="toast"] *,
-    .stAlert[data-baseweb="banner"], .stAlert[data-baseweb="banner"] *,
-    .stAlert[data-baseweb="inline"], .stAlert[data-baseweb="inline"] * {
-        color: #334155 !important;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-        font-weight: 500 !important;
-    }
-    
-    /* Additional targeting for Streamlit error elements */
-    .stAlert, .stAlert *, .stAlert > div, .stAlert > div *,
-    .stAlert[data-baseweb="notification"], .stAlert[data-baseweb="notification"] *,
-    .stAlert[data-baseweb="toast"], .stAlert[data-baseweb="toast"] *,
-    .stAlert[data-baseweb="banner"], .stAlert[data-baseweb="banner"] *,
-    .stAlert[data-baseweb="inline"], .stAlert[data-baseweb="inline"] *,
-    .stAlert[data-baseweb="toast"], .stAlert[data-baseweb="toast"] *,
-    .stAlert[data-baseweb="banner"], .stAlert[data-baseweb="banner"] *,
-    .stAlert[data-baseweb="inline"], .stAlert[data-baseweb="inline"] * {
-        color: #334155 !important;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-        font-weight: 500 !important;
+        margin-top: 0.25rem;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
+
 
 def check_api_health() -> bool:
     """Check if the API is healthy."""
     try:
         response = requests.get("http://api:8000/healthz", timeout=5)
         return response.status_code == 200
-    except:
+    except Exception:
         return False
+
 
 def ingest_documents(link: str) -> Dict:
     """Ingest documents from Google Drive link."""
     try:
-        # Extract folder ID from Google Drive link
         if "drive.google.com" in link:
             if "/folders/" in link:
                 folder_id = link.split("/folders/")[1].split("?")[0]
@@ -646,27 +417,24 @@ def ingest_documents(link: str) -> Dict:
         else:
             st.error("Please provide a valid Google Drive folder link")
             return {"status": "error"}
-        
-        payload = {
-            "source": "google_drive",
-            "folder_id": folder_id
-        }
-        
+
+        payload = {"source": "google_drive", "folder_id": folder_id}
+
         response = requests.post(
             "http://api:8000/ingest",
             json=payload,
-            timeout=600  # 10 minutes timeout for ingestion
+            timeout=600,
         )
-        
+
         if response.status_code == 200:
             return response.json()
-        else:
-            st.error(f"Ingestion failed: {response.text}")
-            return {"status": "error"}
-            
+        st.error(f"Ingestion failed: {response.text}")
+        return {"status": "error"}
+
     except Exception as e:
         st.error(f"Ingestion error: {str(e)}")
         return {"status": "error"}
+
 
 def search_documents(query: str, search_mode: str, top_k: int) -> Dict:
     """Search documents using the RAG system."""
@@ -675,176 +443,223 @@ def search_documents(query: str, search_mode: str, top_k: int) -> Dict:
             "question": query,
             "search_mode": search_mode,
             "top_k": top_k,
-            "generate_answer": True
+            "generate_answer": True,
         }
-        
+
         response = requests.post(
             "http://api:8000/query",
             json=payload,
-            timeout=180
+            timeout=180,
         )
-        
+
         if response.status_code == 200:
             return response.json()
-        else:
-            st.error(f"Search failed: {response.text}")
-            return {"status": "error"}
-            
+        st.error(f"Search failed: {response.text}")
+        return {"status": "error"}
+
     except Exception as e:
         st.error(f"Search error: {str(e)}")
         return {"status": "error"}
 
-def main():
+
+def main() -> None:
     """Main Luthro application."""
-    
-    # Header
-    st.markdown('<h1 class="luthro-header">🔍 Luthro</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="luthro-subtitle">Advanced AI-Powered Document Search & Analysis</p>', unsafe_allow_html=True)
-    
-    # Check API health
+
+    st.markdown(
+        """
+        <div class="luthro-hero">
+            <div class="luthro-hero__brand">
+                <div class="luthro-hero__mark" aria-hidden="true"></div>
+            </div>
+            <h1 class="luthro-hero__title"><span>Luthro</span></h1>
+            <p class="luthro-hero__tagline">
+                Document intelligence for teams — ingest from Drive, query with hybrid retrieval, and read grounded answers.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     if not check_api_health():
-        st.error("⚠️ API service is not available. Please check if the backend is running.")
-        st.stop()
-    
-    # Link Input Section
-    # st.markdown('<div class="link-container">', unsafe_allow_html=True)
-    st.subheader("📁 Document Ingestion")
-    st.markdown("*Upload your documents to enable intelligent search and analysis*")
-    
-    col1, col2 = st.columns([4, 1], gap="small")
-    
-    with col1:
-        link_input = st.text_input(
-            "Google Drive Folder Link",
-            placeholder="https://drive.google.com/drive/folders/...",
-            help="Paste a Google Drive folder link to ingest documents for AI analysis"
+        st.error(
+            "The API service is not available. Start the backend or check your Docker network, then refresh this page."
         )
-    
-    with col2:
-        # Add some spacing to align with the text input
-        st.markdown("<div style='height: 3.5rem;'></div>", unsafe_allow_html=True)
-        if st.button("🚀 Ingest Documents", key="ingest", use_container_width=True):
+        st.stop()
+
+    st.markdown(
+        '<div style="text-align:center;margin:-0.5rem 0 1.5rem;"><span class="luthro-pill">API connected</span></div>',
+        unsafe_allow_html=True,
+    )
+
+    # --- Ingestion ---
+    st.markdown(
+        """
+        <div class="luthro-section-header">
+            <p class="luthro-section__kicker">01 · Ingestion</p>
+            <h2 class="luthro-section__title">Connect your corpus</h2>
+            <p class="luthro-section__desc">Paste a shared Google Drive folder link. We index chunks for hybrid retrieval and grounded answers.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col_link, col_go = st.columns([4, 1], gap="medium")
+    with col_link:
+        link_input = st.text_input(
+            "Google Drive folder URL",
+            placeholder="https://drive.google.com/drive/folders/…",
+            help="The folder must be readable by the indexer service.",
+        )
+    with col_go:
+        st.markdown("<div style='height:0.15rem'></div>", unsafe_allow_html=True)
+        if st.button("Ingest", key="ingest", use_container_width=True):
             if link_input:
-                with st.spinner("Ingesting documents... This may take several minutes."):
+                with st.spinner("Indexing documents…"):
                     result = ingest_documents(link_input)
                     if result.get("status") == "success":
-                        st.markdown(f'<div class="status-success">✅ Successfully ingested {result.get("chunks_indexed", 0)} chunks from {result.get("documents_processed", 0)} documents!</div>', unsafe_allow_html=True)
+                        st.markdown(
+                            f'<div class="status-success">Indexed {result.get("chunks_indexed", 0)} chunks from '
+                            f'{result.get("documents_processed", 0)} documents.</div>',
+                            unsafe_allow_html=True,
+                        )
                     else:
-                        st.markdown('<div class="status-error">❌ Ingestion failed. Please check the link and try again.</div>', unsafe_allow_html=True)
+                        st.markdown(
+                            '<div class="status-error">Ingestion could not complete. Verify the folder link and permissions.</div>',
+                            unsafe_allow_html=True,
+                        )
             else:
-                st.warning("Please enter a Google Drive folder link.")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Search Section
-    # st.markdown('<div class="search-container">', unsafe_allow_html=True)
-    st.subheader("🔍 Intelligent Document Search")
-    st.markdown("*Ask questions and get AI-powered answers from your documents*")
-    
-    # Search configuration
-    col1, col2, col3 = st.columns([2, 1, 1])
-    
-    with col1:
+                st.warning("Enter a Google Drive folder URL first.")
+
+    st.markdown("<hr class='luthro-rule' />", unsafe_allow_html=True)
+
+    # --- Search ---
+    st.markdown(
+        """
+        <div class="luthro-section-header">
+            <p class="luthro-section__kicker">02 · Query</p>
+            <h2 class="luthro-section__title">Ask your documents</h2>
+            <p class="luthro-section__desc">Pick a retrieval mode and how many passages to send to the answer model.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    q1, q2, q3 = st.columns([2, 1, 1], gap="medium")
+    with q1:
         query = st.text_input(
-            "Search Query",
-            placeholder="What are the main topics discussed in the documents?",
-            help="Ask any question about your documents - the AI will find relevant information"
+            "Question",
+            placeholder="e.g. What are the main obligations described in the agreement?",
+            key="q_main",
         )
-    
-    with col2:
+    with q2:
         search_mode = st.selectbox(
-            "Search Mode",
+            "Search mode",
             options=[
                 "elser_only",
-                "dense_only", 
+                "dense_only",
                 "bm25_only",
                 "dense_bm25",
-                "full_hybrid"
+                "full_hybrid",
             ],
-            help="Choose your search strategy: ELSER (semantic), Dense (embeddings), BM25 (keywords), or Hybrid combinations"
+            help="Hybrid modes combine lexical and semantic signals.",
         )
-    
-    with col3:
+    with q3:
         top_k = st.selectbox(
-            "Results Count",
+            "Passages",
             options=[3, 5, 10, 15, 20],
             index=1,
-            help="Number of relevant results to return"
+            help="Number of retrieved chunks sent to the answer model.",
         )
-    
-    # Search button
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🔍 Search Documents", key="search", use_container_width=True):
+
+    st.markdown("<div style='height:0.35rem'></div>", unsafe_allow_html=True)
+    _, c_btn, _ = st.columns([1, 2, 1])
+    with c_btn:
+        if st.button("Search", key="search", use_container_width=True):
             if query:
-                with st.spinner("Searching documents with AI..."):
+                with st.spinner("Retrieving and generating…"):
                     results = search_documents(query, search_mode, top_k)
                     if results.get("status") == "success":
                         st.session_state.search_results = results
                         st.session_state.query = query
                         st.rerun()
                     else:
-                        st.error("Search failed. Please try again.")
+                        st.error("Search failed. Try again or check API logs.")
             else:
-                st.warning("Please enter a search query.")
-    
-    # st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Results Section
-    if hasattr(st.session_state, 'search_results') and st.session_state.search_results:
-        st.markdown('<div class="results-container">', unsafe_allow_html=True)
-        
-        # Search summary
+                st.warning("Enter a question to search.")
+
+    # --- Results ---
+    if st.session_state.get("search_results"):
         results = st.session_state.search_results
-        st.subheader(f"📊 Search Results for: '{st.session_state.query}'")
-        
-        # Search mode info with enhanced badge
+        q_disp = html.escape(str(st.session_state.get("query", "")))
+
         mode_descriptions = {
-            "elser_only": "ELSER Semantic Search",
-            "dense_only": "Dense Vector Search", 
-            "bm25_only": "BM25 Keyword Search",
-            "dense_bm25": "Dense + BM25 Hybrid",
-            "full_hybrid": "ELSER + Dense + BM25 Full Hybrid"
+            "elser_only": "ELSER semantic",
+            "dense_only": "Dense vectors",
+            "bm25_only": "BM25 keywords",
+            "dense_bm25": "Dense + BM25",
+            "full_hybrid": "Full hybrid (ELSER + dense + BM25)",
         }
-        
-        st.markdown(f'<div class="mode-badge">🔧 {mode_descriptions.get(results.get("search_mode", ""), results.get("search_mode", ""))}</div>', unsafe_allow_html=True)
-        
-        # LLM Answer with enhanced styling
-        if results.get('llm_response') and results['llm_response'].get('answer'):
-            st.markdown("### 💡 AI Generated Answer")
-            st.markdown(f'<div class="ai-answer">{results["llm_response"]["answer"]}</div>', unsafe_allow_html=True)
-        
-        # Search Results with enhanced cards
-        if results.get('results'):
-            st.markdown(f"### 📚 Found {len(results['results'])} Results")
-            
-            for i, result in enumerate(results['results']):
-                with st.expander(f"Result {i+1} - {result.get('filename', 'Unknown')} (Score: {result.get('_score', 0):.3f})"):
-                    # Content with proper styling
-                    st.markdown(f'<div class="result-content"><strong>Content:</strong> {result.get("content", "No content")}</div>', unsafe_allow_html=True)
-                    
-                    # Metadata in columns with proper styling
-                    col1, col2, col3 = st.columns(3)
-                with col1:
-                        st.markdown(f'<div class="result-metadata"><strong>File:</strong> {result.get("filename", "Unknown")}</div>', unsafe_allow_html=True)
-                with col2:
-                    st.markdown(f'<div class="result-metadata"><strong>Chunk ID:</strong> {result.get("chunk_id", "N/A")}</div>', unsafe_allow_html=True)
-                with col3:
-                    st.markdown(f'<div class="result-metadata"><strong>Search Type:</strong> {result.get("search_type", "Unknown")}</div>', unsafe_allow_html=True)
-                
-                # Source link with proper styling
-                if result.get('file_url'):
-                        st.markdown(f'<div class="result-metadata"><strong>Source:</strong> <a href="{result.get("file_url", "")}" target="_blank">{result.get("file_url", "")}</a></div>', unsafe_allow_html=True)
-        
-        # Clear results button
-        if st.button("🗑️ Clear Results", key="clear"):
-            if 'search_results' in st.session_state:
-                del st.session_state.search_results
-            if 'query' in st.session_state:
-                del st.session_state.query
-            st.rerun()
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+        mode_label = html.escape(
+            str(mode_descriptions.get(results.get("search_mode", ""), results.get("search_mode", "")))
+        )
+
+        answer_html = ""
+        if results.get("llm_response") and results["llm_response"].get("answer"):
+            ans = html.escape(results["llm_response"]["answer"]).replace("\n", "<br/>")
+            answer_html = f'<h3 class="luthro-inline-h3">Answer</h3><div class="luthro-ai">{ans}</div>'
+
+        st.markdown(
+            f"""
+            <div class="luthro-results">
+                <p class="luthro-results__title">Results · “{q_disp}”</p>
+                <div class="luthro-badge">{mode_label}</div>
+                {answer_html}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if results.get("results"):
+            st.markdown(f"### Sources ({len(results['results'])})")
+            for i, result in enumerate(results["results"]):
+                fn = result.get("filename", "Unknown")
+                title = f"{i + 1}. {fn} · score {result.get('_score', 0):.3f}"
+                body = html.escape(result.get("content", "No content")).replace("\n", "<br/>")
+                with st.expander(title):
+                    st.markdown(
+                        f'<div class="result-content">{body}</div>',
+                        unsafe_allow_html=True,
+                    )
+                    m1, m2, m3 = st.columns(3)
+                    with m1:
+                        st.markdown(
+                            f'<div class="result-metadata"><strong>File</strong><br>{html.escape(str(result.get("filename", "—")))}</div>',
+                            unsafe_allow_html=True,
+                        )
+                    with m2:
+                        st.markdown(
+                            f'<div class="result-metadata"><strong>Chunk</strong><br>{html.escape(str(result.get("chunk_id", "—")))}</div>',
+                            unsafe_allow_html=True,
+                        )
+                    with m3:
+                        st.markdown(
+                            f'<div class="result-metadata"><strong>Type</strong><br>{html.escape(str(result.get("search_type", "—")))}</div>',
+                            unsafe_allow_html=True,
+                        )
+                    if result.get("file_url"):
+                        url = html.escape(result.get("file_url", ""), quote=True)
+                        st.markdown(
+                            f'<div class="result-metadata"><a href="{url}" target="_blank" rel="noopener noreferrer">Open source</a></div>',
+                            unsafe_allow_html=True,
+                        )
+
+        _padl, clr, _padr = st.columns([2, 1, 2])
+        with clr:
+            if st.button("Clear results", key="clear", use_container_width=True):
+                st.session_state.pop("search_results", None)
+                st.session_state.pop("query", None)
+                st.rerun()
+
 
 if __name__ == "__main__":
     main()
