@@ -30,6 +30,11 @@ google-api-python-client==2.108.0
 google-auth-httplib2==0.1.1
 google-auth-oauthlib==1.1.0
 
+# Observability (Prometheus / Grafana)
+# Instrumentator 5.x matches FastAPI 0.104 / Starlette 0.27; 7.x needs newer Starlette.
+prometheus-client==0.20.0
+prometheus-fastapi-instrumentator==5.11.2
+
 # Utilities
 httpx==0.25.2
 aiofiles==23.2.1

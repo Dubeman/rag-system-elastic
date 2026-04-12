@@ -96,6 +96,7 @@ services:
       - ELASTICSEARCH_URL=http://elasticsearch:9200
       - LLM_SERVICE_URL=http://ollama:11434
       - ENVIRONMENT=development
+      - METRICS_ENABLED=true
     volumes:
       - ./src:/app/src
       - ./data:/app/data
@@ -112,6 +113,41 @@ services:
     networks:
       - rag-network
     command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    container_name: rag-prometheus
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks:
+      - rag-network
+    depends_on:
+      - api
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: rag-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+    volumes:
+      - ./docker/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./docker/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - rag-network
+    depends_on:
+      - prometheus
 
   ui:
     build:

@@ -5,6 +5,8 @@ import json
 import logging
 from typing import Dict, List, Optional
 
+from ..observability.metrics import record_cache_result
+
 logger = logging.getLogger(__name__)
 
 class CachedRetriever:
@@ -24,6 +26,7 @@ class CachedRetriever:
         cache_key = self.get_cache_key(query, mode, top_k)
         if cache_key in self.cache:
             logger.info(f"Cache HIT for query: {query[:50]}...")
+            record_cache_result(True)
             return self.cache[cache_key]
         return None
     
@@ -43,6 +46,7 @@ class CachedRetriever:
         
         # Cache miss - retrieve from base retriever
         logger.info(f"Cache MISS for query: {query[:50]}...")
+        record_cache_result(False)
         results = self.base_retriever.retrieve(query, top_k, mode)
         
         # Cache the results
