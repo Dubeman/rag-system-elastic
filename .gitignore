@@ -28,6 +28,10 @@ wheels/
 *.manifest
 *.spec
 
+# v2 runtime artifacts (page images, FAISS index, local test dirs)
+data/
+adapters/
+
 # Environments
 .env
 .venv

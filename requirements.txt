@@ -35,6 +35,12 @@ google-auth-oauthlib==1.1.0
 prometheus-client==0.20.0
 prometheus-fastapi-instrumentator==5.11.2
 
+# Vision v2 (page images, FAISS / Qdrant)
+pymupdf==1.24.14
+faiss-cpu>=1.7.4,<1.9
+qdrant-client>=1.7.0
+# peft: optional; install for scripts/train_lora.py (see script docstring)
+
 # Utilities
 httpx==0.25.2
 aiofiles==23.2.1
