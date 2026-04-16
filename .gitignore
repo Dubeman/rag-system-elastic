@@ -59,3 +59,14 @@ venv.bak/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Coverage
+coverage.xml
+.coverage
+
+# Pytest
+.pytest_cache/
+
+# HTML coverage
+htmlcov/
+

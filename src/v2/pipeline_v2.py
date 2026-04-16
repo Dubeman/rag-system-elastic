@@ -96,7 +96,7 @@ class VisionPipelineV2:
 
         return {
             "question": question,
-            "search_mode": "vision_colpali_faiss",
+            "search_mode": self.retriever.search_mode_label(),
             "results": results,
             "total_results": len(results),
             "status": "success",

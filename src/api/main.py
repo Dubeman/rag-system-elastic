@@ -19,6 +19,7 @@ from ..ingestion import IngestionPipeline
 from ..observability.metrics import (
     LLM_ERROR,
     LLM_SKIPPED,
+    LLM_STUB,
     LLM_SUCCESS,
     STAGE_GENERATE,
     STAGE_INGEST,
@@ -132,6 +133,8 @@ def _v2_llm_metric_status(llm: Optional[Dict[str, Any]]) -> str:
     st = str(llm.get("status", "")).lower()
     if st == "error":
         return LLM_ERROR
+    if st == "stub":
+        return LLM_STUB
     return LLM_SUCCESS
 
 

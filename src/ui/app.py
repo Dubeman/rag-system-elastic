@@ -3,9 +3,11 @@ Luthro — enterprise-style Streamlit UI for the RAG console.
 """
 
 import html
-import streamlit as st
-import requests
+from pathlib import Path
 from typing import Dict
+
+import requests
+import streamlit as st
 
 # -----------------------------------------------------------------------------
 # Page
@@ -405,7 +407,7 @@ def check_api_health() -> bool:
         return False
 
 
-def ingest_documents(link: str) -> Dict:
+def ingest_documents(link: str, pipeline_version: str) -> Dict:
     """Ingest documents from Google Drive link."""
     try:
         if "drive.google.com" in link:
@@ -418,7 +420,11 @@ def ingest_documents(link: str) -> Dict:
             st.error("Please provide a valid Google Drive folder link")
             return {"status": "error"}
 
-        payload = {"source": "google_drive", "folder_id": folder_id}
+        payload = {
+            "source": "google_drive",
+            "folder_id": folder_id,
+            "pipeline_version": pipeline_version,
+        }
 
         response = requests.post(
             "http://api:8000/ingest",
@@ -436,7 +442,9 @@ def ingest_documents(link: str) -> Dict:
         return {"status": "error"}
 
 
-def search_documents(query: str, search_mode: str, top_k: int) -> Dict:
+def search_documents(
+    query: str, search_mode: str, top_k: int, pipeline_version: str
+) -> Dict:
     """Search documents using the RAG system."""
     try:
         payload = {
@@ -444,6 +452,7 @@ def search_documents(query: str, search_mode: str, top_k: int) -> Dict:
             "search_mode": search_mode,
             "top_k": top_k,
             "generate_answer": True,
+            "pipeline_version": pipeline_version,
         }
 
         response = requests.post(
@@ -491,13 +500,35 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
+    pipeline_version = st.selectbox(
+        "Pipeline",
+        options=["v1", "v2"],
+        index=0,
+        format_func=lambda x: (
+            "v1 · Elasticsearch hybrid (ELSER / BM25 / dense)"
+            if x == "v1"
+            else "v2 · Vision pages (ColPali-class · beta)"
+        ),
+        help=(
+            "v1: text chunks in Elasticsearch. v2: PDF pages as images, vectors in "
+            "FAISS/Qdrant — use after ingesting with the same pipeline."
+        ),
+        key="pipeline_version",
+    )
+    is_v2 = pipeline_version == "v2"
+
     # --- Ingestion ---
+    ingest_desc = (
+        "Paste a shared Google Drive folder link. We index chunks for hybrid retrieval and grounded answers."
+        if not is_v2
+        else "Paste a shared Google Drive folder link. We rasterize pages, embed them for vision retrieval, then answer via the configured VLM."
+    )
     st.markdown(
-        """
+        f"""
         <div class="luthro-section-header">
             <p class="luthro-section__kicker">01 · Ingestion</p>
             <h2 class="luthro-section__title">Connect your corpus</h2>
-            <p class="luthro-section__desc">Paste a shared Google Drive folder link. We index chunks for hybrid retrieval and grounded answers.</p>
+            <p class="luthro-section__desc">{html.escape(ingest_desc)}</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -515,13 +546,30 @@ def main() -> None:
         if st.button("Ingest", key="ingest", use_container_width=True):
             if link_input:
                 with st.spinner("Indexing documents…"):
-                    result = ingest_documents(link_input)
+                    result = ingest_documents(link_input, pipeline_version)
                     if result.get("status") == "success":
-                        st.markdown(
-                            f'<div class="status-success">Indexed {result.get("chunks_indexed", 0)} chunks from '
-                            f'{result.get("documents_processed", 0)} documents.</div>',
-                            unsafe_allow_html=True,
-                        )
+                        if result.get("pipeline_version") == "v2" or is_v2:
+                            inner = result.get("result") or {}
+                            pages = inner.get("pages_rendered")
+                            if pages is None and isinstance(inner.get("totals"), dict):
+                                pages = inner["totals"].get("pages_rendered")
+                            vecs = inner.get("vectors_indexed")
+                            if vecs is None and isinstance(inner.get("totals"), dict):
+                                vecs = inner["totals"].get("vectors_indexed")
+                            summary = (
+                                f"Vision v2 ingest complete. Pages processed: {pages or '—'}, "
+                                f"vectors indexed: {vecs or '—'}."
+                            )
+                            st.markdown(
+                                f'<div class="status-success">{html.escape(summary)}</div>',
+                                unsafe_allow_html=True,
+                            )
+                        else:
+                            st.markdown(
+                                f'<div class="status-success">Indexed {result.get("chunks_indexed", 0)} chunks from '
+                                f'{result.get("documents_processed", 0)} documents.</div>',
+                                unsafe_allow_html=True,
+                            )
                     else:
                         st.markdown(
                             '<div class="status-error">Ingestion could not complete. Verify the folder link and permissions.</div>',
@@ -533,12 +581,17 @@ def main() -> None:
     st.markdown("<hr class='luthro-rule' />", unsafe_allow_html=True)
 
     # --- Search ---
+    query_desc = (
+        "Pick a retrieval mode and how many passages to send to the answer model."
+        if not is_v2
+        else "Vision retrieval uses page images; passage count is how many pages to score and send to the VLM."
+    )
     st.markdown(
-        """
+        f"""
         <div class="luthro-section-header">
             <p class="luthro-section__kicker">02 · Query</p>
             <h2 class="luthro-section__title">Ask your documents</h2>
-            <p class="luthro-section__desc">Pick a retrieval mode and how many passages to send to the answer model.</p>
+            <p class="luthro-section__desc">{html.escape(query_desc)}</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -552,23 +605,29 @@ def main() -> None:
             key="q_main",
         )
     with q2:
-        search_mode = st.selectbox(
-            "Search mode",
-            options=[
-                "elser_only",
-                "dense_only",
-                "bm25_only",
-                "dense_bm25",
-                "full_hybrid",
-            ],
-            help="Hybrid modes combine lexical and semantic signals.",
-        )
+        if is_v2:
+            st.caption("Hybrid search modes apply to **v1** only.")
+            search_mode = "dense_bm25"
+        else:
+            search_mode = st.selectbox(
+                "Search mode",
+                options=[
+                    "elser_only",
+                    "dense_only",
+                    "bm25_only",
+                    "dense_bm25",
+                    "full_hybrid",
+                ],
+                help="Hybrid modes combine lexical and semantic signals.",
+            )
     with q3:
         top_k = st.selectbox(
-            "Passages",
+            "Passages" if not is_v2 else "Pages (top-k)",
             options=[3, 5, 10, 15, 20],
             index=1,
-            help="Number of retrieved chunks sent to the answer model.",
+            help=(
+                "v1: chunks sent to the LLM. v2: page images retrieved and sent to the VLM."
+            ),
         )
 
     st.markdown("<div style='height:0.35rem'></div>", unsafe_allow_html=True)
@@ -577,7 +636,9 @@ def main() -> None:
         if st.button("Search", key="search", use_container_width=True):
             if query:
                 with st.spinner("Retrieving and generating…"):
-                    results = search_documents(query, search_mode, top_k)
+                    results = search_documents(
+                        query, search_mode, top_k, pipeline_version
+                    )
                     if results.get("status") == "success":
                         st.session_state.search_results = results
                         st.session_state.query = query
@@ -598,10 +659,13 @@ def main() -> None:
             "bm25_only": "BM25 keywords",
             "dense_bm25": "Dense + BM25",
             "full_hybrid": "Full hybrid (ELSER + dense + BM25)",
+            "vision_colpali_faiss": "Vision v2 (page vectors)",
         }
+        sm = results.get("search_mode", "")
         mode_label = html.escape(
-            str(mode_descriptions.get(results.get("search_mode", ""), results.get("search_mode", "")))
+            str(mode_descriptions.get(sm, sm or "—"))
         )
+        pv_badge = html.escape(str(results.get("pipeline_version", "v1")))
 
         answer_html = ""
         if results.get("llm_response") and results["llm_response"].get("answer"):
@@ -612,6 +676,7 @@ def main() -> None:
             f"""
             <div class="luthro-results">
                 <p class="luthro-results__title">Results · “{q_disp}”</p>
+                <div class="luthro-badge">Pipeline {pv_badge}</div>
                 <div class="luthro-badge">{mode_label}</div>
                 {answer_html}
             </div>
@@ -619,17 +684,40 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
+        if results.get("timings_ms"):
+            tm = results["timings_ms"]
+            st.caption(
+                f"Timings (ms): retrieve {tm.get('retrieve', '—')} · "
+                f"generate {tm.get('generate', '—')}"
+            )
+
         if results.get("results"):
             st.markdown(f"### Sources ({len(results['results'])})")
             for i, result in enumerate(results["results"]):
                 fn = result.get("filename", "Unknown")
                 title = f"{i + 1}. {fn} · score {result.get('_score', 0):.3f}"
-                body = html.escape(result.get("content", "No content")).replace("\n", "<br/>")
+                body_raw = result.get("content", "").strip()
+                if body_raw:
+                    body = html.escape(body_raw).replace("\n", "<br/>")
+                else:
+                    body = (
+                        "<em>Vision page — see metadata and preview below.</em>"
+                        if result.get("image_path")
+                        else "<em>No text chunk for this hit.</em>"
+                    )
                 with st.expander(title):
                     st.markdown(
                         f'<div class="result-content">{body}</div>',
                         unsafe_allow_html=True,
                     )
+                    ip = result.get("image_path") or ""
+                    if ip:
+                        try:
+                            p = Path(str(ip))
+                            if p.is_file():
+                                st.image(str(p), caption=f"Page {result.get('page_num', '—')}")
+                        except Exception:
+                            pass
                     m1, m2, m3 = st.columns(3)
                     with m1:
                         st.markdown(
@@ -637,8 +725,18 @@ def main() -> None:
                             unsafe_allow_html=True,
                         )
                     with m2:
+                        if result.get("page_num") is not None:
+                            chunk_or_page = html.escape(
+                                f"page {result.get('page_num', '—')}"
+                            )
+                            label = "Page"
+                        else:
+                            chunk_or_page = html.escape(
+                                str(result.get("chunk_id", "—"))
+                            )
+                            label = "Chunk"
                         st.markdown(
-                            f'<div class="result-metadata"><strong>Chunk</strong><br>{html.escape(str(result.get("chunk_id", "—")))}</div>',
+                            f'<div class="result-metadata"><strong>{html.escape(label)}</strong><br>{chunk_or_page}</div>',
                             unsafe_allow_html=True,
                         )
                     with m3:

@@ -10,10 +10,11 @@ def page_key(doc_id: str, page_num: int) -> str:
 
 
 def recall_at_k(relevant: Set[str], ranked: List[str], k: int) -> float:
+    """Standard Recall@k: |relevant ∩ top-k| / |relevant|."""
     if not relevant or k <= 0:
         return 0.0
     top_k = set(ranked[:k])
-    return len(top_k & relevant) / min(len(relevant), k)
+    return len(top_k & relevant) / len(relevant)
 
 
 def mean_reciprocal_rank(relevant: Set[str], ranked: List[str]) -> float:

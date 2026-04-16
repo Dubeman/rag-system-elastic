@@ -18,6 +18,9 @@ def test_recall_at_k():
     assert recall_at_k(rel, ranked, k=2) == 0.0
     ranked2 = ["a:0", "b:1"]
     assert recall_at_k(rel, ranked2, k=2) == 1.0
+    # Standard Recall@k: denominator is |relevant|, not min(|relevant|, k).
+    three_rel = {"a:0", "b:1", "c:2"}
+    assert recall_at_k(three_rel, ["a:0", "b:1"], k=2) == 2.0 / 3.0
 
 
 def test_mrr():

@@ -134,3 +134,10 @@ class VisionRetriever:
                 }
             )
         return out
+
+    def search_mode_label(self) -> str:
+        """API `search_mode` — reflects ColPali retrieval + vector backend (FAISS vs Qdrant)."""
+        backend = os.getenv("VECTOR_BACKEND", "faiss").lower().strip()
+        if backend == "qdrant":
+            return "vision_colpali_qdrant"
+        return "vision_colpali_faiss"
