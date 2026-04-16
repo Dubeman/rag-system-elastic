@@ -1,0 +1,27 @@
+# Minimal stack for local API smoke tests: Elasticsearch only (no ELSER setup job).
+# Usage:
+#   docker compose -f docker-compose.smoke.yml up -d elasticsearch
+#   export ELASTICSEARCH_URL=http://localhost:9200
+#   PYTHONPATH=src uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+#
+# Then: curl -s http://localhost:8000/healthz
+
+version: "3.8"
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: rag-elasticsearch-smoke
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+      - cluster.name=rag-smoke
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30

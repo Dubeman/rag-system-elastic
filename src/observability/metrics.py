@@ -24,6 +24,7 @@ VALID_SEARCH_MODES = frozenset(
 LLM_SUCCESS = "success"
 LLM_ERROR = "error"
 LLM_SKIPPED = "skipped"
+LLM_STUB = "stub"
 
 RAG_STAGE_DURATION = Histogram(
     "rag_stage_duration_seconds",
@@ -78,7 +79,7 @@ def observe_stage_seconds(stage: str, seconds: float, search_mode: Optional[str]
 def record_llm_outcome(status: str) -> None:
     if not metrics_enabled():
         return
-    if status not in (LLM_SUCCESS, LLM_ERROR, LLM_SKIPPED):
+    if status not in (LLM_SUCCESS, LLM_ERROR, LLM_SKIPPED, LLM_STUB):
         status = LLM_ERROR
     RAG_LLM_GENERATION.labels(status=status).inc()
 

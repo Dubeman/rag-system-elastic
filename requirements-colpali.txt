@@ -1,0 +1,9 @@
+# Optional: real ColPali local inference (GPU recommended).
+# Install on top of base requirements:
+#   pip install -r requirements.txt -r requirements-colpali.txt
+#
+# Versions may need tuning with your CUDA/PyTorch stack.
+
+colpali-engine>=0.3.0
+torch>=2.1.0
+pillow>=10.0.0

@@ -1,0 +1,2 @@
+# Example: python scripts/eval_v2.py eval/fixtures/sample_eval.json
+aggregate_recall@5: 1.0000

@@ -85,6 +85,17 @@ services:
       "
     restart: "no"
 
+  # Optional: vision v2 vector DB when VECTOR_BACKEND=qdrant (set QDRANT_URL=http://qdrant:6333 on api)
+  qdrant:
+    image: qdrant/qdrant:v1.12.5
+    container_name: rag-qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - rag-network
+
   api:
     build:
       context: .
@@ -97,6 +108,8 @@ services:
       - LLM_SERVICE_URL=http://ollama:11434
       - ENVIRONMENT=development
       - METRICS_ENABLED=true
+      # Vision v2 + Qdrant in Compose: set VECTOR_BACKEND=qdrant and uncomment:
+      # - QDRANT_URL=http://qdrant:6333
     volumes:
       - ./src:/app/src
       - ./data:/app/data
@@ -225,6 +238,8 @@ volumes:
   elasticsearch_data:
     driver: local
   ollama_data:
+    driver: local
+  qdrant_data:
     driver: local
 
 networks:

@@ -1,0 +1,17 @@
+{
+  "description": "Toy retrieval eval: qrels + ranked page ids per query (doc_id:page_num).",
+  "qrels": [
+    {
+      "qid": "q1",
+      "question": "What is in the sample document?",
+      "relevant": ["sample_doc_abc:0"]
+    }
+  ],
+  "runs": [
+    {
+      "qid": "q1",
+      "ranked": ["sample_doc_abc:0", "other:1"]
+    }
+  ],
+  "k": 5
+}
