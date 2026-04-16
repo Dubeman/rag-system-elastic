@@ -70,3 +70,5 @@ coverage.xml
 # HTML coverage
 htmlcov/
 
+# data
+data/
