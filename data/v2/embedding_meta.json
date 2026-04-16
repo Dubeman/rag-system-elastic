@@ -1,7 +1,0 @@
-{
-  "model_id": "vidore/colpali-v1.2",
-  "embedding_dim": 128,
-  "use_mock": true,
-  "embed_url": "",
-  "vector_backend": "qdrant"
-}
