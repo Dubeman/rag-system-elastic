@@ -167,7 +167,10 @@ class DocumentIndexer:
 
         for i, chunk in enumerate(chunks):
             try:
-                doc_id = f"{chunk.get('document_id', 'unknown')}_{chunk.get('chunk_id', 0)}"
+                # Stable ES document id: prefer explicit canonical_id (e.g. passage eval index)
+                doc_id = chunk.get("canonical_id") or (
+                    f"{chunk.get('document_id', 'unknown')}_{chunk.get('chunk_id', 0)}"
+                )
                 text_content = chunk.get("text", "")
                 
                 # Generate dense embedding
@@ -193,6 +196,8 @@ class DocumentIndexer:
                     "char_count": chunk.get("char_count", 0),
                     "timestamp": datetime.utcnow().isoformat(),
                 }
+                if chunk.get("canonical_id"):
+                    doc["canonical_id"] = chunk["canonical_id"]
                 
                 # Add ELSER embedding if available
                 if elser_embeddings[i]:

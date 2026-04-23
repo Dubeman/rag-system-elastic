@@ -121,6 +121,13 @@ class QueryRequest(BaseModel):
     top_k: int = 5
     search_mode: str = "dense_bm25"
     generate_answer: bool = True
+    elasticsearch_index: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional Elasticsearch index for v1 retrieval only (benchmark/eval). "
+            "When unset, uses the default application index."
+        ),
+    )
     pipeline_version: Optional[str] = Field(
         default=None,
         description="v1 (default) or v2 — overrides PIPELINE_VERSION env",
@@ -358,11 +365,20 @@ async def query_documents(request: QueryRequest, req: Request):
             stage="retrieve_v1",
         ):
             t_retrieve_start = time.perf_counter()
-            results = retriever.retrieve(
-                query=request.question,
-                top_k=request.top_k,
-                mode=request.search_mode,
-            )
+            if request.elasticsearch_index:
+                # Bypass cache so eval/benchmark indices do not pollute default cache keys.
+                hr = HybridRetriever(es_client, index_name=request.elasticsearch_index)
+                results = hr.retrieve(
+                    query=request.question,
+                    top_k=request.top_k,
+                    mode=request.search_mode,
+                )
+            else:
+                results = retriever.retrieve(
+                    query=request.question,
+                    top_k=request.top_k,
+                    mode=request.search_mode,
+                )
         observe_stage_seconds(
             STAGE_RETRIEVE,
             time.perf_counter() - t_retrieve_start,
