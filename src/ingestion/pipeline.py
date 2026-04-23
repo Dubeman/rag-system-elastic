@@ -1,5 +1,6 @@
 """Ingestion pipeline orchestrating all steps with public Google Drive support."""
 
+import glob as globlib
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -94,6 +95,100 @@ class IngestionPipeline:
         logger.info(f"Created {total_chunks} chunks from {len(chunked_docs)} documents")
 
         return chunked_docs
+
+    def ingest_from_local_files(self, file_paths: List[str]) -> List[Dict]:
+        """Ingest PDFs from local filesystem paths.
+
+        Args:
+            file_paths: List of absolute or relative paths to PDF files.
+
+        Returns:
+            List of chunked document dicts (same shape as ingest_from_google_drive).
+        """
+        resolved_paths = self._expand_local_pdf_paths(file_paths)
+        pdf_files = []
+        for path in resolved_paths:
+            try:
+                content = path.read_bytes()
+                pdf_files.append({
+                    "id": path.stem,
+                    "name": path.name,
+                    "content": content,
+                    "size": len(content),
+                    "url": str(path.resolve()),
+                    "modified_time": "",
+                    "mime_type": "application/pdf",
+                })
+                logger.info("Loaded local PDF: %s (%d bytes)", path.name, len(content))
+            except Exception as e:
+                logger.error("Failed to read %s: %s", str(path), e)
+
+        if not pdf_files:
+            logger.warning("No valid PDFs found in provided file_paths")
+            return []
+
+        parsed_docs = self.pdf_parser.parse_multiple_pdfs(pdf_files)
+        successful_docs = [doc for doc in parsed_docs if doc["extraction_success"]]
+        logger.info("Parsed %d / %d documents successfully", len(successful_docs), len(pdf_files))
+
+        chunked_docs = []
+        for doc in successful_docs:
+            chunked_doc = self.chunker.chunk_document(doc)
+            chunked_docs.append(chunked_doc)
+
+        total_chunks = sum(doc.get("chunk_count", 0) for doc in chunked_docs)
+        logger.info("Created %d chunks from %d documents", total_chunks, len(chunked_docs))
+        return chunked_docs
+
+    def _expand_local_pdf_paths(self, file_paths: List[str]) -> List[Path]:
+        """Expand explicit paths, directories, and globs to deduplicated PDF paths."""
+        expanded_paths: List[Path] = []
+        seen = set()
+        raw_count = len(file_paths)
+
+        for raw_path in file_paths:
+            if not raw_path:
+                logger.warning("Empty path entry in file_paths, skipping")
+                continue
+
+            path = Path(raw_path)
+            has_glob = any(ch in raw_path for ch in "*?[]")
+
+            candidates: List[Path] = []
+            if has_glob:
+                candidates = [Path(p) for p in globlib.glob(raw_path)]
+                if not candidates:
+                    logger.warning("Glob matched no files: %s", raw_path)
+            elif path.is_dir():
+                candidates = sorted(path.glob("*.pdf"))
+                if not candidates:
+                    logger.warning("Directory has no PDF files: %s", raw_path)
+            else:
+                candidates = [path]
+
+            for candidate in candidates:
+                if not candidate.exists():
+                    logger.warning("File not found, skipping: %s", str(candidate))
+                    continue
+                if candidate.is_dir():
+                    logger.warning("Directory path not allowed here, skipping: %s", str(candidate))
+                    continue
+                if candidate.suffix.lower() != ".pdf":
+                    logger.warning("Non-PDF file skipped: %s", str(candidate))
+                    continue
+
+                dedupe_key = str(candidate.resolve())
+                if dedupe_key in seen:
+                    continue
+                seen.add(dedupe_key)
+                expanded_paths.append(candidate)
+
+        logger.info(
+            "Expanded %d path input(s) to %d unique PDF file(s)",
+            raw_count,
+            len(expanded_paths),
+        )
+        return expanded_paths
 
     def ingest_sample_text(self, text: str, filename: str = "sample.txt") -> List[Dict]:
         """Ingest sample text for testing."""

@@ -103,6 +103,13 @@ class IngestRequest(BaseModel):
     source: str = "sample"
     folder_id: str = ""
     sample_text: str = ""
+    file_paths: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Local PDF inputs — explicit files, directories, or glob patterns; "
+            "used when source='local_files'"
+        ),
+    )
     pipeline_version: Optional[str] = Field(
         default=None,
         description="v1 (default) or v2 — overrides PIPELINE_VERSION env",
@@ -189,6 +196,16 @@ async def ingest_documents(request: IngestRequest, req: Request):
                         request.folder_id,
                         ingestion_pipeline,
                     )
+                elif request.source == "local_files":
+                    if not request.file_paths:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="file_paths required for local_files source",
+                        )
+                    result = vision_pipeline_v2.ingest_from_local_files(
+                        request.file_paths,
+                        ingestion_pipeline,
+                    )
                 else:
                     raise HTTPException(status_code=400, detail="Unsupported source type")
 
@@ -231,6 +248,13 @@ async def ingest_documents(request: IngestRequest, req: Request):
                         detail="folder_id required for Google Drive source",
                     )
                 documents = ingestion_pipeline.ingest_from_google_drive(request.folder_id)
+            elif request.source == "local_files":
+                if not request.file_paths:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="file_paths required for local_files source",
+                    )
+                documents = ingestion_pipeline.ingest_from_local_files(request.file_paths)
             else:
                 raise HTTPException(status_code=400, detail="Unsupported source type")
 
