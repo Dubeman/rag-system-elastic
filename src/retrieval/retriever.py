@@ -1,6 +1,7 @@
 """Hybrid retrieval implementation."""
 
 import logging
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
 import concurrent.futures
@@ -55,7 +56,15 @@ class HybridRetriever:
                         }
                     },
                     "size": top_k,
-                    "_source": ["text", "content", "filename", "chunk_id", "file_url", "modified_time"]
+                    "_source": [
+                        "text",
+                        "content",
+                        "filename",
+                        "chunk_id",
+                        "file_url",
+                        "modified_time",
+                        "canonical_id",
+                    ]
                 }
             )
             
@@ -108,7 +117,15 @@ class HybridRetriever:
                         }
                     },
                     "size": top_k,
-                    "_source": ["text", "content", "filename", "chunk_id", "file_url", "modified_time"]
+                    "_source": [
+                        "text",
+                        "content",
+                        "filename",
+                        "chunk_id",
+                        "file_url",
+                        "modified_time",
+                        "canonical_id",
+                    ]
                 }
             )
             
@@ -154,7 +171,16 @@ class HybridRetriever:
                         }
                     },
                     "size": top_k,
-                    "_source": ["text", "content", "filename", "chunk_id", "file_url", "modified_time", "text_expansion"]
+                    "_source": [
+                        "text",
+                        "content",
+                        "filename",
+                        "chunk_id",
+                        "file_url",
+                        "modified_time",
+                        "text_expansion",
+                        "canonical_id",
+                    ]
                 }
             )
             
@@ -301,10 +327,23 @@ class HybridRetriever:
             # Format results for consistency
             formatted_results = []
             for i, result in enumerate(results):
+                src = result.get("_source", {}) or {}
+                evidence_id = src.get("canonical_id")
+                if not evidence_id:
+                    fn = result.get("filename", "") or ""
+                    stem = Path(fn).stem if fn else ""
+                    cid = result.get("chunk_id", "")
+                    if stem and cid != "" and cid != "N/A":
+                        evidence_id = f"{stem}:{cid}"
+                    elif stem:
+                        evidence_id = stem
+                    else:
+                        evidence_id = ""
                 formatted_results.append({
                     "content": result.get("content", ""),
                     "filename": result.get("filename", "Unknown"),
                     "chunk_id": result.get("chunk_id", "N/A"),
+                    "evidence_id": evidence_id,
                     "file_url": result.get("file_url", "N/A"),
                     "modified_time": result.get("modified_time", "N/A"),
                     "_score": result.get("_score", 0.0),

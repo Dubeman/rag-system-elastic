@@ -54,6 +54,7 @@ es_client = None
 indexer = None
 ingestion_pipeline = None
 retriever = None
+retriever_by_index: Dict[str, HybridRetriever] = {}
 llm_client = None
 answer_generator = None
 vision_pipeline_v2: Optional[VisionPipelineV2] = None
@@ -62,7 +63,7 @@ vision_pipeline_v2: Optional[VisionPipelineV2] = None
 @app.on_event("startup")
 async def startup_event():
     global es_client, indexer, ingestion_pipeline, retriever, llm_client, answer_generator
-    global vision_pipeline_v2
+    global vision_pipeline_v2, retriever_by_index
 
     es_url = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
 
@@ -73,6 +74,7 @@ async def startup_event():
 
         base_retriever = HybridRetriever(es_client)
         retriever = CachedRetriever(base_retriever)
+        retriever_by_index = {}
 
         llm_client = LLMClient()
         answer_generator = AnswerGenerator(llm_client)
@@ -121,6 +123,13 @@ class QueryRequest(BaseModel):
     top_k: int = 5
     search_mode: str = "dense_bm25"
     generate_answer: bool = True
+    elasticsearch_index: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional Elasticsearch index for v1 retrieval only (benchmark/eval). "
+            "When unset, uses the default application index."
+        ),
+    )
     pipeline_version: Optional[str] = Field(
         default=None,
         description="v1 (default) or v2 — overrides PIPELINE_VERSION env",
@@ -358,11 +367,23 @@ async def query_documents(request: QueryRequest, req: Request):
             stage="retrieve_v1",
         ):
             t_retrieve_start = time.perf_counter()
-            results = retriever.retrieve(
-                query=request.question,
-                top_k=request.top_k,
-                mode=request.search_mode,
-            )
+            if request.elasticsearch_index:
+                # Keep a retriever per custom index to avoid reloading the embedding model each request.
+                hr = retriever_by_index.get(request.elasticsearch_index)
+                if hr is None:
+                    hr = HybridRetriever(es_client, index_name=request.elasticsearch_index)
+                    retriever_by_index[request.elasticsearch_index] = hr
+                results = hr.retrieve(
+                    query=request.question,
+                    top_k=request.top_k,
+                    mode=request.search_mode,
+                )
+            else:
+                results = retriever.retrieve(
+                    query=request.question,
+                    top_k=request.top_k,
+                    mode=request.search_mode,
+                )
         observe_stage_seconds(
             STAGE_RETRIEVE,
             time.perf_counter() - t_retrieve_start,
