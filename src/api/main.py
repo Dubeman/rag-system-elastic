@@ -54,6 +54,7 @@ es_client = None
 indexer = None
 ingestion_pipeline = None
 retriever = None
+retriever_by_index: Dict[str, HybridRetriever] = {}
 llm_client = None
 answer_generator = None
 vision_pipeline_v2: Optional[VisionPipelineV2] = None
@@ -62,7 +63,7 @@ vision_pipeline_v2: Optional[VisionPipelineV2] = None
 @app.on_event("startup")
 async def startup_event():
     global es_client, indexer, ingestion_pipeline, retriever, llm_client, answer_generator
-    global vision_pipeline_v2
+    global vision_pipeline_v2, retriever_by_index
 
     es_url = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
 
@@ -73,6 +74,7 @@ async def startup_event():
 
         base_retriever = HybridRetriever(es_client)
         retriever = CachedRetriever(base_retriever)
+        retriever_by_index = {}
 
         llm_client = LLMClient()
         answer_generator = AnswerGenerator(llm_client)
@@ -366,8 +368,11 @@ async def query_documents(request: QueryRequest, req: Request):
         ):
             t_retrieve_start = time.perf_counter()
             if request.elasticsearch_index:
-                # Bypass cache so eval/benchmark indices do not pollute default cache keys.
-                hr = HybridRetriever(es_client, index_name=request.elasticsearch_index)
+                # Keep a retriever per custom index to avoid reloading the embedding model each request.
+                hr = retriever_by_index.get(request.elasticsearch_index)
+                if hr is None:
+                    hr = HybridRetriever(es_client, index_name=request.elasticsearch_index)
+                    retriever_by_index[request.elasticsearch_index] = hr
                 results = hr.retrieve(
                     query=request.question,
                     top_k=request.top_k,

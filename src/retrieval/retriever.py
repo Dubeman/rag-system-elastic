@@ -56,7 +56,15 @@ class HybridRetriever:
                         }
                     },
                     "size": top_k,
-                    "_source": ["text", "content", "filename", "chunk_id", "file_url", "modified_time"]
+                    "_source": [
+                        "text",
+                        "content",
+                        "filename",
+                        "chunk_id",
+                        "file_url",
+                        "modified_time",
+                        "canonical_id",
+                    ]
                 }
             )
             
@@ -109,7 +117,15 @@ class HybridRetriever:
                         }
                     },
                     "size": top_k,
-                    "_source": ["text", "content", "filename", "chunk_id", "file_url", "modified_time"]
+                    "_source": [
+                        "text",
+                        "content",
+                        "filename",
+                        "chunk_id",
+                        "file_url",
+                        "modified_time",
+                        "canonical_id",
+                    ]
                 }
             )
             
@@ -155,7 +171,16 @@ class HybridRetriever:
                         }
                     },
                     "size": top_k,
-                    "_source": ["text", "content", "filename", "chunk_id", "file_url", "modified_time", "text_expansion"]
+                    "_source": [
+                        "text",
+                        "content",
+                        "filename",
+                        "chunk_id",
+                        "file_url",
+                        "modified_time",
+                        "text_expansion",
+                        "canonical_id",
+                    ]
                 }
             )
             

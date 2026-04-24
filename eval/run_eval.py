@@ -262,6 +262,9 @@ def build_results_payload(
     smoke: bool,
 ) -> dict[str, Any]:
     doc_recall = {f"@{k}": eval_block["aggregate"].get(f"doc_recall@{k}", 0.0) for k in k_values}
+    doc_precision = {
+        f"@{k}": eval_block["aggregate"].get(f"doc_precision@{k}", 0.0) for k in k_values
+    }
     doc_mrr = {f"@{k}": eval_block["aggregate"].get(f"doc_mrr@{k}", 0.0) for k in k_values}
     evidence_recall = {f"@{k}": eval_block["aggregate"].get(f"evidence_recall@{k}", 0.0) for k in k_values}
     evidence_precision = {
@@ -283,6 +286,7 @@ def build_results_payload(
         "smoke": smoke,
         "qrels_meta": qrels_meta,
         "doc_recall": doc_recall,
+        "doc_precision": doc_precision,
         "doc_mrr": doc_mrr,
         "evidence_recall": evidence_recall,
         "evidence_precision": evidence_precision,
