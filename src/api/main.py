@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import glob as globlib
 import logging
 import os
 import time
@@ -152,6 +154,75 @@ def _v2_llm_metric_status(llm: Optional[Dict[str, Any]]) -> str:
     if st == "stub":
         return LLM_STUB
     return LLM_SUCCESS
+
+
+def _resolve_benchmark_dataset_path(path_hint: str = "") -> Path:
+    if path_hint.strip():
+        p = Path(path_hint).expanduser()
+        if any(ch in str(p) for ch in "*?[]"):
+            matches = sorted(globlib.glob(str(p)))
+            if not matches:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No benchmark CSV matches: {path_hint}",
+                )
+            return Path(matches[-1])
+        if not p.exists():
+            raise HTTPException(
+                status_code=404,
+                detail=f"Benchmark CSV not found: {path_hint}",
+            )
+        return p
+
+    default_glob = str((Path(__file__).resolve().parents[3] / "kaggle" / "outputs" / "pilot_labeled_full_*.csv"))
+    matches = sorted(globlib.glob(default_glob))
+    if not matches:
+        raise HTTPException(
+            status_code=404,
+            detail="No pilot_labeled_full_*.csv found under ../kaggle/outputs",
+        )
+    return Path(matches[-1])
+
+
+def _load_benchmark_rows(dataset_path: Path) -> list[dict[str, str]]:
+    try:
+        with dataset_path.open(newline="", encoding="utf-8") as f:
+            rows = list(csv.DictReader(f))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Unable to read CSV: {e}") from e
+
+    required_cols = {"query_idx", "query_text", "doc_name", "passage_id", "relevance_label"}
+    cols = set(rows[0].keys()) if rows else set()
+    missing = sorted(required_cols - cols)
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail=f"CSV missing required columns: {missing}",
+        )
+    return rows
+
+
+def _build_qrels(rows: list[dict[str, str]], threshold: int = 2) -> list[dict[str, Any]]:
+    grouped: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        query_idx = str(row.get("query_idx", "")).strip()
+        qid = f"q{query_idx}"
+        if qid not in grouped:
+            grouped[qid] = {
+                "qid": qid,
+                "query_idx": query_idx,
+                "question": row.get("query_text", "").strip(),
+                "relevant": [],
+            }
+        try:
+            relevance = int(float(str(row.get("relevance_label", "0"))))
+        except Exception:
+            relevance = 0
+        if relevance >= threshold:
+            doc_name = str(row.get("doc_name", "")).strip()
+            passage_id = str(row.get("passage_id", "")).strip()
+            grouped[qid]["relevant"].append(f"{doc_name}:{passage_id}")
+    return [grouped[k] for k in sorted(grouped.keys(), key=lambda x: int(x[1:]) if x[1:].isdigit() else x)]
 
 
 @app.get("/healthz")
@@ -453,6 +524,80 @@ async def query_documents(request: QueryRequest, req: Request):
         logger.error("Enhanced query failed: %s", e)
         PIPELINE_ROUTE_LATENCY.labels("POST", path, pv).observe(time.perf_counter() - t_start)
         raise HTTPException(status_code=500, detail=f"Query failed: {e}")
+
+
+@app.get("/benchmark/datasets")
+async def list_benchmark_datasets(path_hint: str = ""):
+    selected = _resolve_benchmark_dataset_path(path_hint)
+    default_glob = str((Path(__file__).resolve().parents[3] / "kaggle" / "outputs" / "pilot_labeled_full_*.csv"))
+    datasets = sorted(globlib.glob(default_glob))
+    return {
+        "status": "success",
+        "selected_dataset": str(selected),
+        "datasets": datasets,
+    }
+
+
+@app.get("/benchmark/queries")
+async def list_benchmark_queries(dataset_path: str = "", threshold: int = 2):
+    dataset = _resolve_benchmark_dataset_path(dataset_path)
+    rows = _load_benchmark_rows(dataset)
+    qrels = _build_qrels(rows, threshold=threshold)
+    return {
+        "status": "success",
+        "dataset_path": str(dataset),
+        "total_queries": len(qrels),
+        "queries": [
+            {
+                "qid": q["qid"],
+                "query_idx": q["query_idx"],
+                "question": q["question"],
+                "relevant_count": len(q["relevant"]),
+            }
+            for q in qrels
+        ],
+    }
+
+
+@app.get("/benchmark/qrels/{qid}")
+async def get_benchmark_qrels(qid: str, dataset_path: str = "", threshold: int = 2):
+    dataset = _resolve_benchmark_dataset_path(dataset_path)
+    rows = _load_benchmark_rows(dataset)
+    qrels = _build_qrels(rows, threshold=threshold)
+    qrel_map = {q["qid"]: q for q in qrels}
+    if qid not in qrel_map:
+        raise HTTPException(status_code=404, detail=f"Query id not found: {qid}")
+    return {
+        "status": "success",
+        "dataset_path": str(dataset),
+        "qrel": qrel_map[qid],
+    }
+
+
+@app.get("/benchmark/coverage")
+async def get_benchmark_coverage(dataset_path: str = "", corpus_dir: str = "data/kaggle_docs", threshold: int = 2):
+    dataset = _resolve_benchmark_dataset_path(dataset_path)
+    rows = _load_benchmark_rows(dataset)
+    qrels = _build_qrels(rows, threshold=threshold)
+    labeled_docs = {
+        rel.split(":", 1)[0]
+        for q in qrels
+        for rel in q["relevant"]
+        if ":" in rel
+    }
+
+    corpus_root = Path(corpus_dir)
+    available_docs = {p.stem for p in corpus_root.glob("*.pdf")} if corpus_root.exists() else set()
+    missing = sorted(labeled_docs - available_docs)
+    return {
+        "status": "success",
+        "dataset_path": str(dataset),
+        "corpus_dir": str(corpus_root),
+        "labeled_doc_count": len(labeled_docs),
+        "available_doc_count": len(available_docs),
+        "coverage_ratio": round((len(labeled_docs & available_docs) / len(labeled_docs)), 4) if labeled_docs else 1.0,
+        "missing_docs": missing,
+    }
 
 
 setup_prometheus_instrumentation(app)

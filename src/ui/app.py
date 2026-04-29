@@ -3,8 +3,11 @@ Luthro — enterprise-style Streamlit UI for the RAG console.
 """
 
 import html
+import csv
+import glob as globlib
+import os
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List, Optional, Tuple
 
 import requests
 import streamlit as st
@@ -175,13 +178,26 @@ st.markdown(
 
     /* Streamlit widgets */
     .stTextInput label,
-    .stSelectbox label {
+    .stSelectbox label,
+    .stRadio label,
+    .stCheckbox label,
+    .stMultiSelect label {
         font-family: var(--l-font) !important;
         font-weight: 600 !important;
         font-size: 0.82rem !important;
         color: var(--l-text) !important;
         text-transform: none;
         letter-spacing: 0;
+    }
+    .stCheckbox [data-testid="stMarkdownContainer"] p,
+    .stRadio [data-testid="stMarkdownContainer"] p {
+        color: var(--l-text) !important;
+    }
+    .stCaption,
+    [data-testid="stCaptionContainer"],
+    [data-testid="stCaptionContainer"] p,
+    [data-testid="stWidgetLabelHelpInline"] {
+        color: var(--l-text-muted) !important;
     }
     .stTextInput input {
         border-radius: var(--l-radius-sm) !important;
@@ -238,6 +254,13 @@ st.markdown(
     div[data-baseweb="popover"] [aria-selected="true"],
     div[data-baseweb="popover"] li[aria-selected="true"] {
         background-color: var(--l-accent-soft) !important;
+        color: var(--l-text) !important;
+    }
+
+    /* Radio groups (Baseweb) — avoid white-on-light text */
+    .stRadio [data-baseweb="radio"] label,
+    .stRadio [data-baseweb="radio"] span,
+    .stRadio [data-baseweb="radio"] p {
         color: var(--l-text) !important;
     }
 
@@ -407,24 +430,40 @@ def check_api_health() -> bool:
         return False
 
 
-def ingest_documents(link: str, pipeline_version: str) -> Dict:
-    """Ingest documents from Google Drive link."""
+def _extract_drive_folder_id(link: str) -> str:
+    if "drive.google.com" not in link:
+        return ""
+    if "/folders/" not in link:
+        return ""
+    return link.split("/folders/")[1].split("?")[0].strip()
+
+
+def ingest_documents(
+    source: str,
+    pipeline_version: str,
+    drive_link: str = "",
+    file_paths: Optional[List[str]] = None,
+) -> Dict:
+    """Ingest documents from Google Drive link or local file paths."""
     try:
-        if "drive.google.com" in link:
-            if "/folders/" in link:
-                folder_id = link.split("/folders/")[1].split("?")[0]
-            else:
+        payload: Dict[str, object] = {"pipeline_version": pipeline_version}
+        if source == "google_drive":
+            folder_id = _extract_drive_folder_id(drive_link)
+            if not folder_id:
                 st.error("Please provide a valid Google Drive folder link")
                 return {"status": "error"}
+            payload["source"] = "google_drive"
+            payload["folder_id"] = folder_id
+        elif source == "local_files":
+            paths = [p.strip() for p in (file_paths or []) if p.strip()]
+            if not paths:
+                st.warning("Add at least one local file path, directory, or glob.")
+                return {"status": "error"}
+            payload["source"] = "local_files"
+            payload["file_paths"] = paths
         else:
-            st.error("Please provide a valid Google Drive folder link")
+            st.error(f"Unsupported ingestion source: {source}")
             return {"status": "error"}
-
-        payload = {
-            "source": "google_drive",
-            "folder_id": folder_id,
-            "pipeline_version": pipeline_version,
-        }
 
         response = requests.post(
             "http://api:8000/ingest",
@@ -443,7 +482,7 @@ def ingest_documents(link: str, pipeline_version: str) -> Dict:
 
 
 def search_documents(
-    query: str, search_mode: str, top_k: int, pipeline_version: str
+    query: str, search_mode: str, top_k: int, pipeline_version: str, generate_answer: bool = True
 ) -> Dict:
     """Search documents using the RAG system."""
     try:
@@ -451,7 +490,7 @@ def search_documents(
             "question": query,
             "search_mode": search_mode,
             "top_k": top_k,
-            "generate_answer": True,
+            "generate_answer": generate_answer,
             "pipeline_version": pipeline_version,
         }
 
@@ -469,6 +508,150 @@ def search_documents(
     except Exception as e:
         st.error(f"Search error: {str(e)}")
         return {"status": "error"}
+
+
+def _default_dataset_path() -> str:
+    return os.getenv(
+        "BENCHMARK_DATASET_PATH",
+        "../kaggle/outputs/pilot_labeled_full_20260417_164339.csv",
+    )
+
+
+def _default_local_ingest_path() -> str:
+    return os.getenv("LOCAL_INGEST_PATH", "data/kaggle_docs/*.pdf")
+
+
+def _read_qrels_from_csv(dataset_path: str, threshold: int = 2) -> List[Dict]:
+    path = Path(dataset_path).expanduser()
+    if any(ch in dataset_path for ch in "*?[]"):
+        matches = sorted(globlib.glob(dataset_path))
+        if not matches:
+            raise ValueError(f"No dataset files match: {dataset_path}")
+        path = Path(matches[-1])
+    if not path.exists():
+        raise ValueError(f"Dataset file not found: {dataset_path}")
+
+    with path.open(newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    if not rows:
+        return []
+    required = {"query_idx", "query_text", "doc_name", "passage_id", "relevance_label"}
+    missing = required - set(rows[0].keys())
+    if missing:
+        raise ValueError(f"Dataset missing required columns: {sorted(missing)}")
+
+    grouped: Dict[str, Dict] = {}
+    for row in rows:
+        query_idx = str(row.get("query_idx", "")).strip()
+        qid = f"q{query_idx}"
+        if qid not in grouped:
+            grouped[qid] = {
+                "qid": qid,
+                "query_idx": query_idx,
+                "question": str(row.get("query_text", "")).strip(),
+                "relevant": [],
+            }
+        try:
+            relevance = int(float(str(row.get("relevance_label", "0"))))
+        except Exception:
+            relevance = 0
+        if relevance >= threshold:
+            doc_name = str(row.get("doc_name", "")).strip()
+            passage_id = str(row.get("passage_id", "")).strip()
+            grouped[qid]["relevant"].append(f"{doc_name}:{passage_id}")
+
+    return [grouped[k] for k in sorted(grouped.keys(), key=lambda x: int(x[1:]) if x[1:].isdigit() else x)]
+
+
+def _fetch_benchmark_queries(dataset_path: str, threshold: int = 2) -> Tuple[List[Dict], str]:
+    try:
+        response = requests.get(
+            "http://api:8000/benchmark/queries",
+            params={"dataset_path": dataset_path, "threshold": threshold},
+            timeout=20,
+        )
+        if response.status_code == 200:
+            data = response.json()
+            return data.get("queries", []), data.get("dataset_path", dataset_path)
+    except Exception:
+        pass
+    qrels = _read_qrels_from_csv(dataset_path, threshold=threshold)
+    queries = [
+        {
+            "qid": q["qid"],
+            "query_idx": q.get("query_idx", ""),
+            "question": q["question"],
+            "relevant_count": len(q.get("relevant", [])),
+        }
+        for q in qrels
+    ]
+    return queries, dataset_path
+
+
+def _fetch_benchmark_qrel(dataset_path: str, qid: str, threshold: int = 2) -> Dict:
+    try:
+        response = requests.get(
+            f"http://api:8000/benchmark/qrels/{qid}",
+            params={"dataset_path": dataset_path, "threshold": threshold},
+            timeout=20,
+        )
+        if response.status_code == 200:
+            data = response.json()
+            return data.get("qrel", {})
+    except Exception:
+        pass
+    qrels = _read_qrels_from_csv(dataset_path, threshold=threshold)
+    qmap = {q["qid"]: q for q in qrels}
+    return qmap.get(qid, {})
+
+
+def _fetch_benchmark_coverage(dataset_path: str) -> Dict:
+    try:
+        response = requests.get(
+            "http://api:8000/benchmark/coverage",
+            params={"dataset_path": dataset_path},
+            timeout=20,
+        )
+        if response.status_code == 200:
+            return response.json()
+    except Exception:
+        pass
+
+    qrels = _read_qrels_from_csv(dataset_path, threshold=2)
+    labeled_docs = {r.split(":", 1)[0] for q in qrels for r in q.get("relevant", []) if ":" in r}
+    local_docs = {p.stem for p in Path("data/kaggle_docs").glob("*.pdf")}
+    missing = sorted(labeled_docs - local_docs)
+    return {
+        "status": "success",
+        "labeled_doc_count": len(labeled_docs),
+        "available_doc_count": len(local_docs),
+        "missing_docs": missing,
+        "coverage_ratio": round(len(labeled_docs & local_docs) / len(labeled_docs), 4) if labeled_docs else 1.0,
+    }
+
+
+def _build_retrieved_ids(results: Dict, pipeline_version: str) -> List[str]:
+    out = []
+    for r in results.get("results", []):
+        if pipeline_version == "v2":
+            out.append(f"{r.get('doc_id', '')}:{r.get('page_num', 0)}")
+        else:
+            filename = str(r.get("filename", ""))
+            out.append(f"{Path(filename).stem}:{r.get('chunk_id', 0)}")
+    return out
+
+
+def _benchmark_metrics(relevant: List[str], ranked: List[str], top_k: int) -> Dict[str, float]:
+    rel = set(relevant)
+    top = ranked[:top_k]
+    hit = 1.0 if any(r in rel for r in top) else 0.0
+    recall = (sum(1 for r in top if r in rel) / len(rel)) if rel else 0.0
+    rr = 0.0
+    for i, rid in enumerate(ranked, start=1):
+        if rid in rel:
+            rr = 1.0 / i
+            break
+    return {"hit_at_k": hit, "recall_at_k": recall, "mrr": rr}
 
 
 def main() -> None:
@@ -499,6 +682,7 @@ def main() -> None:
         '<div style="text-align:center;margin:-0.5rem 0 1.5rem;"><span class="luthro-pill">API connected</span></div>',
         unsafe_allow_html=True,
     )
+    benchmark_enabled = os.getenv("UI_ENABLE_BENCHMARK_EXPLORER", "false").lower() in {"1", "true", "yes"}
 
     pipeline_version = st.selectbox(
         "Pipeline",
@@ -519,9 +703,9 @@ def main() -> None:
 
     # --- Ingestion ---
     ingest_desc = (
-        "Paste a shared Google Drive folder link. We index chunks for hybrid retrieval and grounded answers."
+        "Choose Google Drive or local files. We index chunks for hybrid retrieval and grounded answers."
         if not is_v2
-        else "Paste a shared Google Drive folder link. We rasterize pages, embed them for vision retrieval, then answer via the configured VLM."
+        else "Choose Google Drive or local files. We rasterize pages, embed them for vision retrieval, then answer via the configured VLM."
     )
     st.markdown(
         f"""
@@ -534,57 +718,94 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
+    ingest_source = st.selectbox(
+        "Ingestion source",
+        options=["google_drive", "local_files"],
+        format_func=lambda x: "Google Drive" if x == "google_drive" else "Local files",
+        help="Local files accepts explicit files, directories, or globs.",
+    )
+
     col_link, col_go = st.columns([4, 1], gap="medium")
     with col_link:
-        link_input = st.text_input(
-            "Google Drive folder URL",
-            placeholder="https://drive.google.com/drive/folders/…",
-            help="The folder must be readable by the indexer service.",
-        )
+        link_input = ""
+        if ingest_source == "google_drive":
+            link_input = st.text_input(
+                "Google Drive folder URL",
+                placeholder="https://drive.google.com/drive/folders/…",
+                help="The folder must be readable by the indexer service.",
+            )
+        else:
+            fixed_local_path = _default_local_ingest_path()
+            st.caption(
+                f"Fixed local corpus path: `{fixed_local_path}`. Click Ingest to index this corpus."
+            )
     with col_go:
         st.markdown("<div style='height:0.15rem'></div>", unsafe_allow_html=True)
         if st.button("Ingest", key="ingest", use_container_width=True):
-            if link_input:
-                with st.spinner("Indexing documents…"):
-                    result = ingest_documents(link_input, pipeline_version)
-                    if result.get("status") == "success":
-                        if result.get("pipeline_version") == "v2" or is_v2:
-                            inner = result.get("result") or {}
-                            pages = inner.get("pages_rendered")
-                            if pages is None and isinstance(inner.get("totals"), dict):
-                                pages = inner["totals"].get("pages_rendered")
-                            vecs = inner.get("vectors_indexed")
-                            if vecs is None and isinstance(inner.get("totals"), dict):
-                                vecs = inner["totals"].get("vectors_indexed")
-                            summary = (
-                                f"Vision v2 ingest complete. Pages processed: {pages or '—'}, "
-                                f"vectors indexed: {vecs or '—'}."
-                            )
-                            st.markdown(
-                                f'<div class="status-success">{html.escape(summary)}</div>',
-                                unsafe_allow_html=True,
-                            )
-                        else:
-                            st.markdown(
-                                f'<div class="status-success">Indexed {result.get("chunks_indexed", 0)} chunks from '
-                                f'{result.get("documents_processed", 0)} documents.</div>',
-                                unsafe_allow_html=True,
-                            )
-                    else:
+            with st.spinner("Indexing documents…"):
+                local_paths = [_default_local_ingest_path()] if ingest_source == "local_files" else []
+                result = ingest_documents(
+                    source=ingest_source,
+                    pipeline_version=pipeline_version,
+                    drive_link=link_input,
+                    file_paths=local_paths,
+                )
+                if result.get("status") == "success":
+                    if result.get("pipeline_version") == "v2" or is_v2:
+                        inner = result.get("result") or {}
+                        pages = inner.get("pages_rendered")
+                        if pages is None and isinstance(inner.get("totals"), dict):
+                            pages = inner["totals"].get("pages_rendered")
+                        vecs = inner.get("vectors_indexed")
+                        if vecs is None and isinstance(inner.get("totals"), dict):
+                            vecs = inner["totals"].get("vectors_indexed")
+                        summary = (
+                            f"Vision v2 ingest complete. Pages processed: {pages or '—'}, "
+                            f"vectors indexed: {vecs or '—'}."
+                        )
                         st.markdown(
-                            '<div class="status-error">Ingestion could not complete. Verify the folder link and permissions.</div>',
+                            f'<div class="status-success">{html.escape(summary)}</div>',
                             unsafe_allow_html=True,
                         )
-            else:
-                st.warning("Enter a Google Drive folder URL first.")
+                    else:
+                        st.markdown(
+                            f'<div class="status-success">Indexed {result.get("chunks_indexed", 0)} chunks from '
+                            f'{result.get("documents_processed", 0)} documents.</div>',
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.markdown(
+                        '<div class="status-error">Ingestion could not complete. Verify source inputs and API wiring.</div>',
+                        unsafe_allow_html=True,
+                    )
 
     st.markdown("<hr class='luthro-rule' />", unsafe_allow_html=True)
 
     # --- Search ---
+    query_mode = "manual"
+    if benchmark_enabled:
+        query_mode = st.selectbox(
+            "Query mode",
+            options=["manual", "benchmark"],
+            format_func=lambda x: "Manual question" if x == "manual" else "Benchmark query",
+            help="Benchmark mode compares retrieved IDs against labeled relevance.",
+        )
+
+    prev_ui_mode = st.session_state.get("_prev_ui_query_mode")
+    if benchmark_enabled and prev_ui_mode is not None and prev_ui_mode != query_mode:
+        st.session_state.pop("search_results", None)
+        st.session_state.pop("benchmark_context", None)
+        st.session_state.pop("query", None)
+        st.session_state.pop("query_mode", None)
+
+    st.session_state._prev_ui_query_mode = query_mode if benchmark_enabled else "manual"
+
     query_desc = (
         "Pick a retrieval mode and how many passages to send to the answer model."
-        if not is_v2
-        else "Vision retrieval uses page images; passage count is how many pages to score and send to the VLM."
+        if query_mode == "manual" and not is_v2
+        else "Vision retrieval uses page images; top-k controls how many pages are returned."
+        if query_mode == "manual"
+        else "Select a labeled query and compare retrieved IDs with benchmark ground truth."
     )
     st.markdown(
         f"""
@@ -598,12 +819,41 @@ def main() -> None:
     )
 
     q1, q2, q3 = st.columns([2, 1, 1], gap="medium")
+    selected_qrel: Dict = {}
+    benchmark_coverage: Dict = {}
+    selected_qid = ""
     with q1:
-        query = st.text_input(
-            "Question",
-            placeholder="e.g. What are the main obligations described in the agreement?",
-            key="q_main",
-        )
+        if query_mode == "manual":
+            query = st.text_input(
+                "Question",
+                placeholder="e.g. What are the main obligations described in the agreement?",
+                key="q_main",
+            )
+        else:
+            dataset_path = _default_dataset_path()
+            try:
+                queries, resolved_path = _fetch_benchmark_queries(dataset_path)
+                st.caption(
+                    f"Benchmark dataset loaded ({len(queries)} queries) from fixed path: {resolved_path}"
+                )
+            except Exception as e:
+                queries, resolved_path = [], dataset_path
+                st.error(f"Failed to load benchmark queries: {e}")
+            selected_qid = st.selectbox(
+                "Labeled query",
+                options=[q.get("qid", "") for q in queries],
+                format_func=lambda qid: next(
+                    (
+                        f"{qid} · {q.get('question', '')[:90]}"
+                        for q in queries
+                        if q.get("qid") == qid
+                    ),
+                    qid,
+                ),
+            ) if queries else ""
+            selected_qrel = _fetch_benchmark_qrel(resolved_path, selected_qid) if selected_qid else {}
+            benchmark_coverage = _fetch_benchmark_coverage(resolved_path) if queries else {}
+            query = selected_qrel.get("question", "")
     with q2:
         if is_v2:
             st.caption("Hybrid search modes apply to **v1** only.")
@@ -630,23 +880,62 @@ def main() -> None:
             ),
         )
 
+    benchmark_generate_answer = False
+    if benchmark_enabled and query_mode == "benchmark":
+        benchmark_generate_answer = st.checkbox(
+            "Generate answer (benchmark)",
+            value=False,
+            help="Off by default for retrieval benchmarking; enable when you want the LLM/VLM answer too.",
+        )
+
+    st.session_state.query_mode = query_mode
+
+    if benchmark_enabled and query_mode == "benchmark":
+        bctx_prev = st.session_state.get("benchmark_context") or {}
+        prev_qid = str(bctx_prev.get("qid", "") or "")
+        if prev_qid and selected_qid and prev_qid != selected_qid:
+            st.session_state.pop("search_results", None)
+            st.session_state.pop("benchmark_context", None)
+        st.session_state.query = query
+
     st.markdown("<div style='height:0.35rem'></div>", unsafe_allow_html=True)
     _, c_btn, _ = st.columns([1, 2, 1])
     with c_btn:
-        if st.button("Search", key="search", use_container_width=True):
+        button_text = "Search" if query_mode == "manual" else "Run benchmark query"
+        if st.button(button_text, key="search", use_container_width=True):
             if query:
-                with st.spinner("Retrieving and generating…"):
+                gen_ans = (query_mode == "manual") or bool(benchmark_generate_answer)
+                spin_text = (
+                    "Retrieving and generating…"
+                    if gen_ans
+                    else ("Running benchmark retrieval…" if query_mode == "benchmark" else "Retrieving…")
+                )
+                with st.spinner(spin_text):
                     results = search_documents(
-                        query, search_mode, top_k, pipeline_version
+                        query, search_mode, top_k, pipeline_version, generate_answer=gen_ans
                     )
                     if results.get("status") == "success":
                         st.session_state.search_results = results
                         st.session_state.query = query
+                        st.session_state.query_mode = query_mode
+                        if query_mode == "benchmark":
+                            ranked_ids = _build_retrieved_ids(results, pipeline_version)
+                            relevant = selected_qrel.get("relevant", [])
+                            st.session_state.benchmark_context = {
+                                "dataset_path": _default_dataset_path(),
+                                "qid": selected_qrel.get("qid", ""),
+                                "question": selected_qrel.get("question", query),
+                                "top_k": top_k,
+                                "relevant": relevant,
+                                "ranked": ranked_ids,
+                                "coverage": benchmark_coverage,
+                                "metrics": _benchmark_metrics(relevant, ranked_ids, top_k),
+                            }
                         st.rerun()
                     else:
                         st.error("Search failed. Try again or check API logs.")
             else:
-                st.warning("Enter a question to search.")
+                st.warning("Enter a question to search." if query_mode == "manual" else "Select a benchmark query first.")
 
     # --- Results ---
     if st.session_state.get("search_results"):
@@ -683,6 +972,35 @@ def main() -> None:
             """,
             unsafe_allow_html=True,
         )
+
+        if st.session_state.get("query_mode") == "benchmark":
+            bctx = st.session_state.get("benchmark_context", {})
+            b_top_k = int(bctx.get("top_k", top_k))
+            metrics = bctx.get("metrics", {})
+            coverage = bctx.get("coverage", {})
+            st.markdown("### Benchmark Comparator")
+            if not bctx.get("relevant"):
+                st.info(
+                    "Ground-truth labels are unavailable for this benchmark query, so Recall/MRR/Hit metrics cannot be computed."
+                )
+            else:
+                st.caption(
+                    f"QID {bctx.get('qid', '—')} · Recall@{b_top_k}: {metrics.get('recall_at_k', 0.0):.3f} · "
+                    f"MRR: {metrics.get('mrr', 0.0):.3f} · Hit@{b_top_k}: {int(metrics.get('hit_at_k', 0.0))}"
+                )
+            missing_docs = coverage.get("missing_docs", []) if isinstance(coverage, dict) else []
+            if missing_docs:
+                st.warning(
+                    f"Partial corpus detected: {len(missing_docs)} labeled docs are missing locally. "
+                    "Benchmark scores may be lower than full-corpus evaluation."
+                )
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("**Ground truth IDs**")
+                st.code("\n".join(bctx.get("relevant", [])) or "(none)", language="text")
+            with c2:
+                st.markdown("**Retrieved IDs**")
+                st.code("\n".join(bctx.get("ranked", [])) or "(none)", language="text")
 
         if results.get("timings_ms"):
             tm = results["timings_ms"]
@@ -756,6 +1074,8 @@ def main() -> None:
             if st.button("Clear results", key="clear", use_container_width=True):
                 st.session_state.pop("search_results", None)
                 st.session_state.pop("query", None)
+                st.session_state.pop("benchmark_context", None)
+                st.session_state.pop("query_mode", None)
                 st.rerun()
 
 

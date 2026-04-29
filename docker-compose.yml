@@ -171,8 +171,11 @@ services:
       - "8501:8501"
     environment:
       - API_URL=http://api:8000
+      - UI_ENABLE_BENCHMARK_EXPLORER=${UI_ENABLE_BENCHMARK_EXPLORER:-false}
+      - BENCHMARK_DATASET_PATH=${BENCHMARK_DATASET_PATH:-}
     volumes:
       - ./src:/app/src
+      - ../kaggle:/external/kaggle:ro
     depends_on:
       - api
     networks:

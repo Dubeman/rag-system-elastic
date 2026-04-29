@@ -77,6 +77,30 @@ class VisionPipelineV2:
             details.append(r)
         return {"status": "success", "totals": totals, "details": details}
 
+    def ingest_from_local_files(
+        self,
+        file_paths: List[str],
+        ingestion: Any,
+    ) -> Dict[str, Any]:
+        """Load local PDFs through v1 path expansion, then render/index v2 page vectors."""
+        resolved_paths = ingestion._expand_local_pdf_paths(file_paths)
+
+        totals = {"documents": 0, "pages_rendered": 0, "vectors_indexed": 0}
+        details: List[Dict[str, Any]] = []
+        for path in resolved_paths:
+            try:
+                content = path.read_bytes()
+            except Exception as e:
+                logger.warning("Skipping unreadable local file %s: %s", path, e)
+                continue
+
+            r = self.ingest_pdf_bytes(content, path.name)
+            totals["documents"] += 1
+            totals["pages_rendered"] += r["pages_rendered"]
+            totals["vectors_indexed"] += r["vectors_indexed"]
+            details.append(r)
+        return {"status": "success", "totals": totals, "details": details}
+
     def query(
         self,
         question: str,
