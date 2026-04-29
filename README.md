@@ -14,7 +14,7 @@ Given a document collection (PDFs from Google Drive), the system:
 
 ## Architecture
 
-![System Architecture](Hexaware%20internship.drawio.png)
+![System Architecture](architecture-v2.svg)
 
 Stack diagrams (Mermaid: Compose topology, ingest/query flows, observability, v2 note): [reports/RAG_STACK_DIAGRAM.md](reports/RAG_STACK_DIAGRAM.md).
 

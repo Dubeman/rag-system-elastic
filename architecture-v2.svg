@@ -1,0 +1,129 @@
+<svg viewBox="0 0 1200 720" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>RAG system architecture (v2 redesign)</title>
+  <desc>Improved architecture diagram for rag-system-elastic. Top: Browser/API client → Streamlit UI :8501 → FastAPI :8000. FastAPI hosts four logical modules (Ingestion Pipeline, Document Indexer, Cached Hybrid Retriever with RRF, Answer Generator with Guardrails). Below the API: Google Drive PDFs (source), Elasticsearch :9200 with three index fields (BM25 keyword, dense vector, ELSER sparse), and Ollama :11434 running Llama 3 8B. Right sidebar: Prometheus :9090 scrapes /metrics, Grafana :3000 reads from Prometheus. Green arrows mark the ingest path; blue arrows mark the query path; dashed grey arrows mark observability.</desc>
+  <defs>
+    <style>
+      .lbl { font: 600 13px ui-sans-serif, system-ui, sans-serif; fill: #1a1a1a; }
+      .sub { font: 400 11px ui-sans-serif, system-ui, sans-serif; fill: #666666; }
+      .tag { font: 500 10.5px ui-sans-serif, system-ui, sans-serif; fill: #666666; }
+      .src { font: 500 10.5px ui-sans-serif, system-ui, sans-serif; fill: #888888; font-style: italic; }
+      .tier { font: 600 10px ui-sans-serif, system-ui, sans-serif; fill: #888888; letter-spacing: 0.08em; }
+      .box { fill: #ffffff; stroke: #d0d0d0; stroke-width: 1; }
+      .module { fill: #f7f7f5; stroke: #d0d0d0; stroke-width: 1; }
+      .api { fill: none; stroke: #b8b8b8; stroke-width: 1.5; stroke-dasharray: 4 3; }
+      .es { fill: #ffffff; stroke: #888888; stroke-width: 1.5; }
+      .obsbg { fill: none; stroke: #b8b8b8; stroke-width: 1.5; stroke-dasharray: 4 3; }
+    </style>
+    <marker id="aq" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2563eb"/>
+    </marker>
+    <marker id="ai" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#16a34a"/>
+    </marker>
+    <marker id="am" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#999999"/>
+    </marker>
+  </defs>
+
+  <text class="tier" x="20" y="62">CLIENT</text>
+  <text class="tier" x="20" y="126">UI</text>
+  <text class="tier" x="20" y="190">API SERVICE</text>
+  <text class="tier" x="20" y="442">DATA &amp; MODELS</text>
+
+  <rect class="box" x="450" y="40" width="200" height="44" rx="6"/>
+  <text class="lbl" x="550" y="60" text-anchor="middle">Browser / API client</text>
+  <text class="sub" x="550" y="76" text-anchor="middle">REST consumer</text>
+
+  <rect class="box" x="450" y="104" width="200" height="44" rx="6"/>
+  <text class="lbl" x="550" y="124" text-anchor="middle">Streamlit UI</text>
+  <text class="sub" x="550" y="140" text-anchor="middle">:8501</text>
+
+  <path d="M550,84 L550,104" stroke="#2563eb" stroke-width="1.5" fill="none" marker-end="url(#aq)"/>
+  <path d="M550,148 L550,170" stroke="#2563eb" stroke-width="1.5" fill="none" marker-end="url(#aq)"/>
+
+  <rect class="api" x="80" y="170" width="820" height="220" rx="10"/>
+  <text class="lbl" x="100" y="194">FastAPI :8000</text>
+  <text class="sub" x="100" y="210">/ingest  ·  /query  ·  /metrics  ·  /healthz</text>
+
+  <rect class="module" x="115" y="240" width="175" height="120" rx="6"/>
+  <text class="lbl" x="202" y="262" text-anchor="middle">Ingestion Pipeline</text>
+  <text class="tag" x="202" y="284" text-anchor="middle">PDF parse + chunk</text>
+  <text class="tag" x="202" y="300" text-anchor="middle">Drive / sample loader</text>
+  <text class="src" x="202" y="338" text-anchor="middle">src/ingestion/</text>
+
+  <rect class="module" x="310" y="240" width="175" height="120" rx="6"/>
+  <text class="lbl" x="397" y="262" text-anchor="middle">Document Indexer</text>
+  <text class="tag" x="397" y="284" text-anchor="middle">Bulk write</text>
+  <text class="tag" x="397" y="300" text-anchor="middle">BM25 + dense + ELSER</text>
+  <text class="src" x="397" y="338" text-anchor="middle">src/indexing/</text>
+
+  <rect class="module" x="505" y="240" width="175" height="120" rx="6"/>
+  <text class="lbl" x="592" y="262" text-anchor="middle">Cached Hybrid Retriever</text>
+  <text class="tag" x="592" y="284" text-anchor="middle">BM25 + dense + ELSER</text>
+  <text class="tag" x="592" y="300" text-anchor="middle">RRF fusion + cache</text>
+  <text class="src" x="592" y="338" text-anchor="middle">src/retrieval/</text>
+
+  <rect class="module" x="700" y="240" width="175" height="120" rx="6"/>
+  <text class="lbl" x="787" y="262" text-anchor="middle">Answer Generator</text>
+  <text class="tag" x="787" y="284" text-anchor="middle">Prompt + citations</text>
+  <text class="tag" x="787" y="300" text-anchor="middle">Guardrails (in / out)</text>
+  <text class="src" x="787" y="338" text-anchor="middle">src/generation/</text>
+
+  <rect class="box" x="80" y="430" width="170" height="80" rx="6"/>
+  <text class="lbl" x="165" y="458" text-anchor="middle">Google Drive</text>
+  <text class="sub" x="165" y="476" text-anchor="middle">PDF source corpus</text>
+  <text class="tag" x="165" y="494" text-anchor="middle">read-only</text>
+
+  <rect class="es" x="290" y="420" width="460" height="100" rx="6"/>
+  <text class="lbl" x="520" y="446" text-anchor="middle">Elasticsearch :9200  ·  rag_documents</text>
+  <rect class="module" x="305" y="460" width="140" height="46" rx="4"/>
+  <text class="tag" x="375" y="478" text-anchor="middle" font-weight="600">BM25 keyword</text>
+  <text class="tag" x="375" y="494" text-anchor="middle">lexical</text>
+  <rect class="module" x="455" y="460" width="140" height="46" rx="4"/>
+  <text class="tag" x="525" y="478" text-anchor="middle" font-weight="600">Dense vector</text>
+  <text class="tag" x="525" y="494" text-anchor="middle">MiniLM-L6-v2</text>
+  <rect class="module" x="605" y="460" width="140" height="46" rx="4"/>
+  <text class="tag" x="675" y="478" text-anchor="middle" font-weight="600">ELSER sparse</text>
+  <text class="tag" x="675" y="494" text-anchor="middle">expanded terms</text>
+
+  <rect class="box" x="790" y="430" width="170" height="80" rx="6"/>
+  <text class="lbl" x="875" y="458" text-anchor="middle">Ollama :11434</text>
+  <text class="sub" x="875" y="476" text-anchor="middle">Llama 3 (8B)</text>
+  <text class="tag" x="875" y="494" text-anchor="middle">local LLM</text>
+
+  <path d="M165,360 L165,430" stroke="#16a34a" stroke-width="1.5" fill="none" marker-end="url(#ai)"/>
+  <path d="M397,360 L470,420" stroke="#16a34a" stroke-width="1.5" fill="none" marker-end="url(#ai)"/>
+  <path d="M592,360 L580,420" stroke="#2563eb" stroke-width="1.5" fill="none" marker-end="url(#aq)"/>
+  <path d="M820,360 L820,430" stroke="#2563eb" stroke-width="1.5" fill="none" marker-end="url(#aq)"/>
+
+  <rect class="obsbg" x="980" y="170" width="180" height="220" rx="10"/>
+  <text class="lbl" x="1000" y="194">Observability</text>
+
+  <rect class="box" x="1000" y="220" width="140" height="56" rx="6"/>
+  <text class="lbl" x="1070" y="244" text-anchor="middle">Prometheus :9090</text>
+  <text class="sub" x="1070" y="262" text-anchor="middle">scrape /metrics  ·  TSDB</text>
+
+  <rect class="box" x="1000" y="300" width="140" height="56" rx="6"/>
+  <text class="lbl" x="1070" y="324" text-anchor="middle">Grafana :3000</text>
+  <text class="sub" x="1070" y="342" text-anchor="middle">PromQL dashboards</text>
+
+  <path d="M900,250 L1000,250" stroke="#999999" stroke-width="1" stroke-dasharray="4 3" fill="none" marker-end="url(#am)"/>
+  <path d="M1070,276 L1070,300" stroke="#999999" stroke-width="1" stroke-dasharray="4 3" fill="none" marker-end="url(#am)"/>
+
+  <g transform="translate(80,560)">
+    <rect class="obsbg" x="0" y="0" width="1080" height="120" rx="6"/>
+    <text class="lbl" x="20" y="24">Legend &amp; flows</text>
+
+    <line x1="20" y1="48" x2="60" y2="48" stroke="#16a34a" stroke-width="1.5" marker-end="url(#ai)"/>
+    <text class="sub" x="72" y="52">Ingest path</text>
+    <text class="tag" x="160" y="52">UI → POST /ingest → fetch PDFs from Drive → chunk → embed (dense + ELSER) → bulk index into Elasticsearch</text>
+
+    <line x1="20" y1="76" x2="60" y2="76" stroke="#2563eb" stroke-width="1.5" marker-end="url(#aq)"/>
+    <text class="sub" x="72" y="80">Query path</text>
+    <text class="tag" x="160" y="80">UI → POST /query → cache check → Hybrid retrieve (BM25 + dense + ELSER) → RRF fuse → Ollama LLM → guardrails → answer + citations</text>
+
+    <line x1="20" y1="104" x2="60" y2="104" stroke="#999999" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#am)"/>
+    <text class="sub" x="72" y="108">Metrics</text>
+    <text class="tag" x="160" y="108">FastAPI exposes /metrics (rag_* counters/histograms) → Prometheus scrapes every 15s → Grafana renders dashboards</text>
+  </g>
+</svg>
