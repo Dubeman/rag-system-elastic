@@ -6,8 +6,14 @@ Follow this order: environment, v2 mock E2E, one real inference path, baselines,
 
 ```bash
 cd /path/to/rag-system-elastic
+
+# Legacy path (kept during migration)
 python3 -m venv .venv && source .venv/bin/activate   # optional
 pip install -r requirements.txt
+
+# Preferred migration path (uv)
+uv sync
+
 cp -n env.example .env
 ```
 
@@ -101,6 +107,16 @@ Re-run v2 ingest (embedding config change clears index).
 - Offline eval: `python scripts/eval_v2.py eval/fixtures/sample_eval.json`
 - Fill [v1_vs_v2_baseline_template.md](v1_vs_v2_baseline_template.md)
 
-## 5. Optimization backlog
+## 5. Baseline parity contract
+
+After the API is running, execute:
+
+```bash
+bash scripts/validate_env_matrix.sh
+```
+
+This validates the migration contract for v1 query and v2 ingest/query smoke, plus lightweight unit smoke tests.
+
+## 6. Optimization backlog
 
 See [OPTIMIZE_BACKLOG.md](OPTIMIZE_BACKLOG.md) — do after steps 1–4.

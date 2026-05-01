@@ -71,6 +71,8 @@ Endpoints: `POST /ingest`, `POST /query` (pass `"pipeline_version": "v2"`), `GET
 
 **Eval:** Offline JSON example in [`eval/fixtures/sample_eval.json`](eval/fixtures/sample_eval.json). Run `python scripts/eval_v2.py eval/fixtures/sample_eval.json` or pass `--api-url http://localhost:8000` for live recall (requires ingested v2 corpus).
 
+**Benchmark UI:** Set `UI_ENABLE_BENCHMARK_EXPLORER=true` (see `env.example`) to run labeled benchmark queries in Streamlit: compare retrieved ids to qrels, an **Expected evidence** panel fed by `GET /benchmark/qrels/{qid}/evidence`, and **[GT]** vs **[Retrieved]** badges on each source when ids match. Optional CSV columns `passage_text`, `text`, `chunk_text`, or `passage` supply full passage text.
+
 **Baselines:** See [`reports/baseline_v1/BASELINE_STEPS.md`](reports/baseline_v1/BASELINE_STEPS.md) and copy `baseline_metrics.example.json` to record v1 numbers before comparing v2.
 
 ## Repository layout
@@ -83,6 +85,32 @@ Endpoints: `POST /ingest`, `POST /query` (pass `"pipeline_version": "v2"`), `GET
 - `src/api/`: FastAPI endpoints and request validation
 - `src/ui/`: Streamlit application
 - `tests/`: unit + integration tests
+
+## Environment management (uv)
+
+The repository supports both legacy `pip` install files and `uv`-managed workflows during migration.
+
+- Legacy compatibility files retained: `requirements.txt`, `requirements-colpali.txt`
+
+Recommended `uv` commands:
+
+```bash
+# Core runtime
+uv sync
+
+# Notebook and Gradio workflow
+uv sync --extra notebook
+
+# Optional training stack
+uv sync --extra train
+
+# Optional local ColPali GPU stack (compat shim during migration)
+uv sync
+uv pip install -r requirements-colpali.txt
+
+# Dev/test tooling
+uv sync --extra dev
+```
 
 ## Quick start (Docker Compose)
 
@@ -173,6 +201,7 @@ After `docker compose up`, open Grafana, sign in, and use **Dashboards → RAG A
 
 - Code quality: pre-commit hooks (`.pre-commit-config.yaml`)
 - **Smoke (simple infra):** [reports/SMOKE_RUNBOOK.md](reports/SMOKE_RUNBOOK.md) — install, v2 mock E2E, optional mock VLM / real embed server; run `bash scripts/smoke_infra.sh` for pytest + offline eval.
+- **Migration parity check:** run `bash scripts/validate_env_matrix.sh` after API startup.
 - Tests:
   ```bash
   pytest tests/ -v --cov=src/

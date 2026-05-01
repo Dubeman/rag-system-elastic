@@ -366,6 +366,26 @@ st.markdown(
         color: var(--l-accent-hover) !important;
     }
 
+    /* Benchmark: ground-truth vs other retrieved hits */
+    .luthro-hit {
+        border-left: 4px solid var(--l-border-strong);
+        padding: 0.65rem 0.85rem;
+        margin: 0.35rem 0 0.75rem;
+        border-radius: 0 var(--l-radius-sm) var(--l-radius-sm) 0;
+        background: var(--l-elevated);
+    }
+    .luthro-hit--gt {
+        border-left-color: var(--l-success);
+        background: var(--l-success-bg);
+    }
+    .luthro-hit--miss {
+        border-left-color: #94a3b8;
+        background: var(--l-elevated);
+    }
+    .luthro-snippet {
+        margin: 0;
+    }
+
     .streamlit-expanderHeader {
         background: var(--l-elevated) !important;
         border-radius: var(--l-radius-sm) !important;
@@ -421,10 +441,15 @@ st.markdown(
 )
 
 
+def _api_base_url() -> str:
+    """RAG API base URL (no trailing slash). Compose sets API_URL=http://api:8000; on host use http://localhost:8000."""
+    return os.getenv("API_URL", "http://localhost:8000").rstrip("/")
+
+
 def check_api_health() -> bool:
     """Check if the API is healthy."""
     try:
-        response = requests.get("http://api:8000/healthz", timeout=5)
+        response = requests.get(f"{_api_base_url()}/healthz", timeout=5)
         return response.status_code == 200
     except Exception:
         return False
@@ -466,7 +491,7 @@ def ingest_documents(
             return {"status": "error"}
 
         response = requests.post(
-            "http://api:8000/ingest",
+            f"{_api_base_url()}/ingest",
             json=payload,
             timeout=600,
         )
@@ -495,7 +520,7 @@ def search_documents(
         }
 
         response = requests.post(
-            "http://api:8000/query",
+            f"{_api_base_url()}/query",
             json=payload,
             timeout=180,
         )
@@ -566,7 +591,7 @@ def _read_qrels_from_csv(dataset_path: str, threshold: int = 2) -> List[Dict]:
 def _fetch_benchmark_queries(dataset_path: str, threshold: int = 2) -> Tuple[List[Dict], str]:
     try:
         response = requests.get(
-            "http://api:8000/benchmark/queries",
+            f"{_api_base_url()}/benchmark/queries",
             params={"dataset_path": dataset_path, "threshold": threshold},
             timeout=20,
         )
@@ -591,7 +616,7 @@ def _fetch_benchmark_queries(dataset_path: str, threshold: int = 2) -> Tuple[Lis
 def _fetch_benchmark_qrel(dataset_path: str, qid: str, threshold: int = 2) -> Dict:
     try:
         response = requests.get(
-            f"http://api:8000/benchmark/qrels/{qid}",
+            f"{_api_base_url()}/benchmark/qrels/{qid}",
             params={"dataset_path": dataset_path, "threshold": threshold},
             timeout=20,
         )
@@ -608,7 +633,7 @@ def _fetch_benchmark_qrel(dataset_path: str, qid: str, threshold: int = 2) -> Di
 def _fetch_benchmark_coverage(dataset_path: str) -> Dict:
     try:
         response = requests.get(
-            "http://api:8000/benchmark/coverage",
+            f"{_api_base_url()}/benchmark/coverage",
             params={"dataset_path": dataset_path},
             timeout=20,
         )
@@ -639,6 +664,31 @@ def _build_retrieved_ids(results: Dict, pipeline_version: str) -> List[str]:
             filename = str(r.get("filename", ""))
             out.append(f"{Path(filename).stem}:{r.get('chunk_id', 0)}")
     return out
+
+
+def _hit_canonical_id(result: Dict, pipeline_version: str) -> str:
+    """Same id scheme as `_build_retrieved_ids` for a single hit."""
+    if pipeline_version == "v2":
+        return f"{result.get('doc_id', '')}:{result.get('page_num', 0)}"
+    filename = str(result.get("filename", ""))
+    return f"{Path(filename).stem}:{result.get('chunk_id', 0)}"
+
+
+def _fetch_benchmark_evidence(dataset_path: str, qid: str, threshold: int = 2) -> List[Dict]:
+    if not qid:
+        return []
+    try:
+        response = requests.get(
+            f"{_api_base_url()}/benchmark/qrels/{qid}/evidence",
+            params={"dataset_path": dataset_path, "threshold": threshold},
+            timeout=30,
+        )
+        if response.status_code == 200:
+            data = response.json()
+            return list(data.get("items") or [])
+    except Exception:
+        pass
+    return []
 
 
 def _benchmark_metrics(relevant: List[str], ranked: List[str], top_k: int) -> Dict[str, float]:
@@ -675,6 +725,10 @@ def main() -> None:
     if not check_api_health():
         st.error(
             "The API service is not available. Start the backend or check your Docker network, then refresh this page."
+        )
+        st.caption(
+            f"Health check target: `{_api_base_url()}/healthz` — set **`API_URL`** if the API runs elsewhere "
+            "(e.g. `http://localhost:8000` when the UI runs on your host and the API is port-forwarded)."
         )
         st.stop()
 
@@ -822,6 +876,7 @@ def main() -> None:
     selected_qrel: Dict = {}
     benchmark_coverage: Dict = {}
     selected_qid = ""
+    resolved_benchmark_path = _default_dataset_path()
     with q1:
         if query_mode == "manual":
             query = st.text_input(
@@ -833,11 +888,13 @@ def main() -> None:
             dataset_path = _default_dataset_path()
             try:
                 queries, resolved_path = _fetch_benchmark_queries(dataset_path)
+                resolved_benchmark_path = resolved_path
                 st.caption(
                     f"Benchmark dataset loaded ({len(queries)} queries) from fixed path: {resolved_path}"
                 )
             except Exception as e:
                 queries, resolved_path = [], dataset_path
+                resolved_benchmark_path = dataset_path
                 st.error(f"Failed to load benchmark queries: {e}")
             selected_qid = st.selectbox(
                 "Labeled query",
@@ -921,15 +978,23 @@ def main() -> None:
                         if query_mode == "benchmark":
                             ranked_ids = _build_retrieved_ids(results, pipeline_version)
                             relevant = selected_qrel.get("relevant", [])
+                            qid_key = str(selected_qrel.get("qid", "") or "")
+                            evidence_items = _fetch_benchmark_evidence(
+                                resolved_benchmark_path,
+                                qid_key,
+                                2,
+                            )
                             st.session_state.benchmark_context = {
-                                "dataset_path": _default_dataset_path(),
-                                "qid": selected_qrel.get("qid", ""),
+                                "dataset_path": resolved_benchmark_path,
+                                "qid": qid_key,
                                 "question": selected_qrel.get("question", query),
                                 "top_k": top_k,
                                 "relevant": relevant,
                                 "ranked": ranked_ids,
                                 "coverage": benchmark_coverage,
                                 "metrics": _benchmark_metrics(relevant, ranked_ids, top_k),
+                                "evidence_items": evidence_items,
+                                "pipeline_version": pipeline_version,
                             }
                         st.rerun()
                     else:
@@ -988,6 +1053,11 @@ def main() -> None:
                     f"QID {bctx.get('qid', '—')} · Recall@{b_top_k}: {metrics.get('recall_at_k', 0.0):.3f} · "
                     f"MRR: {metrics.get('mrr', 0.0):.3f} · Hit@{b_top_k}: {int(metrics.get('hit_at_k', 0.0))}"
                 )
+            if str(bctx.get("pipeline_version") or results.get("pipeline_version", "")).lower() == "v2":
+                st.caption(
+                    "v2 retrieval returns page-level ids (doc:page). Qrels are passage-level "
+                    "(doc:passage_id); a hit shows as [GT] only when those id schemes match."
+                )
             missing_docs = coverage.get("missing_docs", []) if isinstance(coverage, dict) else []
             if missing_docs:
                 st.warning(
@@ -1002,6 +1072,40 @@ def main() -> None:
                 st.markdown("**Retrieved IDs**")
                 st.code("\n".join(bctx.get("ranked", [])) or "(none)", language="text")
 
+            st.markdown("#### Expected evidence (qrels)")
+            evidence_items = list(bctx.get("evidence_items") or [])
+            rel_list = list(bctx.get("relevant", []) or [])
+            has_passage_text = any(str(it.get("text", "")).strip() for it in evidence_items)
+            if evidence_items and has_passage_text:
+                if not all(str(it.get("text", "")).strip() for it in evidence_items):
+                    st.caption(
+                        "Some labeled rows have no text in the CSV; expanders still list every relevant id."
+                    )
+                for it in evidence_items:
+                    eid = str(it.get("id", ""))
+                    etext = str(it.get("text", "") or "").strip()
+                    label = f"{eid}" + ("" if etext else " · (no passage text in CSV)")
+                    with st.expander(label):
+                        if etext:
+                            body_e = html.escape(etext).replace("\n", "<br/>")
+                            st.markdown(
+                                f'<div class="result-content">{body_e}</div>',
+                                unsafe_allow_html=True,
+                            )
+                        else:
+                            st.caption(
+                                "Optional columns for passage body: passage_text, text, chunk_text, or passage."
+                            )
+            elif rel_list:
+                st.caption(
+                    "No passage text columns in the benchmark CSV (expected one of: passage_text, text, "
+                    "chunk_text, passage). Showing labeled ids only."
+                )
+                for rid in rel_list:
+                    st.code(rid, language="text")
+            else:
+                st.caption("No labeled relevant passages for this query.")
+
         if results.get("timings_ms"):
             tm = results["timings_ms"]
             st.caption(
@@ -1011,9 +1115,22 @@ def main() -> None:
 
         if results.get("results"):
             st.markdown(f"### Sources ({len(results['results'])})")
+            bench_ctx = (
+                st.session_state.get("benchmark_context", {})
+                if st.session_state.get("query_mode") == "benchmark"
+                else {}
+            )
+            rel_ids = set(bench_ctx.get("relevant", []) or [])
+            pv_for_hits = str(
+                bench_ctx.get("pipeline_version") or results.get("pipeline_version", "v1")
+            )
+
             for i, result in enumerate(results["results"]):
                 fn = result.get("filename", "Unknown")
-                title = f"{i + 1}. {fn} · score {result.get('_score', 0):.3f}"
+                hit_id = _hit_canonical_id(result, pv_for_hits)
+                is_gt = bool(rel_ids) and hit_id in rel_ids
+                badge = "[GT] " if is_gt else "[Retrieved] "
+                title = f"{i + 1}. {badge}{fn} · score {result.get('_score', 0):.3f}"
                 body_raw = result.get("content", "").strip()
                 if body_raw:
                     body = html.escape(body_raw).replace("\n", "<br/>")
@@ -1023,9 +1140,10 @@ def main() -> None:
                         if result.get("image_path")
                         else "<em>No text chunk for this hit.</em>"
                     )
+                hit_cls = "luthro-hit luthro-hit--gt" if is_gt else "luthro-hit luthro-hit--miss"
                 with st.expander(title):
                     st.markdown(
-                        f'<div class="result-content">{body}</div>',
+                        f'<div class="{html.escape(hit_cls)}"><div class="result-content luthro-snippet">{body}</div></div>',
                         unsafe_allow_html=True,
                     )
                     ip = result.get("image_path") or ""

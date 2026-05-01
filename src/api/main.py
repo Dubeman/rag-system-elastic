@@ -8,7 +8,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
@@ -223,6 +223,52 @@ def _build_qrels(rows: list[dict[str, str]], threshold: int = 2) -> list[dict[st
             passage_id = str(row.get("passage_id", "")).strip()
             grouped[qid]["relevant"].append(f"{doc_name}:{passage_id}")
     return [grouped[k] for k in sorted(grouped.keys(), key=lambda x: int(x[1:]) if x[1:].isdigit() else x)]
+
+
+_PASSAGE_TEXT_COLUMN_ORDER = ("passage_text", "text", "chunk_text", "passage")
+
+
+def _passage_text_columns_from_header(row_keys: set[str]) -> tuple[str, ...]:
+    return tuple(c for c in _PASSAGE_TEXT_COLUMN_ORDER if c in row_keys)
+
+
+def _passage_text_from_row(row: dict[str, str], text_cols: tuple[str, ...]) -> str:
+    for col in text_cols:
+        raw = str(row.get(col, "") or "").strip()
+        if raw:
+            return raw
+    return ""
+
+
+def _benchmark_evidence_items(
+    rows: list[dict[str, str]],
+    qid: str,
+    threshold: int,
+) -> list[dict[str, str]]:
+    """Labeled passage ids and optional text for one benchmark query."""
+    if not rows:
+        return []
+    text_cols = _passage_text_columns_from_header(set(rows[0].keys()))
+    items: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for row in rows:
+        qx = str(row.get("query_idx", "")).strip()
+        if f"q{qx}" != qid:
+            continue
+        try:
+            relevance = int(float(str(row.get("relevance_label", "0"))))
+        except Exception:
+            relevance = 0
+        if relevance < threshold:
+            continue
+        doc_name = str(row.get("doc_name", "")).strip()
+        passage_id = str(row.get("passage_id", "")).strip()
+        rel_id = f"{doc_name}:{passage_id}"
+        if rel_id in seen:
+            continue
+        seen.add(rel_id)
+        items.append({"id": rel_id, "text": _passage_text_from_row(row, text_cols)})
+    return items
 
 
 @app.get("/healthz")
@@ -571,6 +617,28 @@ async def get_benchmark_qrels(qid: str, dataset_path: str = "", threshold: int =
         "status": "success",
         "dataset_path": str(dataset),
         "qrel": qrel_map[qid],
+    }
+
+
+@app.get("/benchmark/qrels/{qid}/evidence")
+async def get_benchmark_qrels_evidence(
+    qid: str,
+    dataset_path: str = "",
+    threshold: int = 2,
+):
+    """Passage-level evidence for a labeled query (ids + optional text from CSV columns)."""
+    dataset = _resolve_benchmark_dataset_path(dataset_path)
+    rows = _load_benchmark_rows(dataset)
+    qrels = _build_qrels(rows, threshold=threshold)
+    qrel_map = {q["qid"]: q for q in qrels}
+    if qid not in qrel_map:
+        raise HTTPException(status_code=404, detail=f"Query id not found: {qid}")
+    items = _benchmark_evidence_items(rows, qid, threshold=threshold)
+    return {
+        "status": "success",
+        "dataset_path": str(dataset),
+        "qid": qid,
+        "items": items,
     }
 
 
