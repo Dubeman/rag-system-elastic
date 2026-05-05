@@ -1,0 +1,129 @@
+{
+  "meta": {
+    "description": "Hand-built qrels for PRD eval slice; aligned with eval/fixtures/eval_corpus_chunks.json",
+    "corpus_fixture": "eval/fixtures/eval_corpus_chunks.json",
+    "n_queries": 24
+  },
+  "queries": [
+    {
+      "qid": "he01",
+      "question": "What city is the capital of France according to EVALCORPUS_TOKEN_ALPHA?",
+      "relevant": ["evaldoc_a:0"]
+    },
+    {
+      "qid": "he02",
+      "question": "EVALCORPUS_TOKEN_ALPHA geography benchmarks Paris France capital",
+      "relevant": ["evaldoc_a:0"]
+    },
+    {
+      "qid": "he03",
+      "question": "Speed of light in vacuum EVALCORPUS_TOKEN_BETA meters per second",
+      "relevant": ["evaldoc_b:0"]
+    },
+    {
+      "qid": "he04",
+      "question": "What physical constant is tied to EVALCORPUS_TOKEN_BETA in physics references?",
+      "relevant": ["evaldoc_b:0"]
+    },
+    {
+      "qid": "he05",
+      "question": "EVALCORPUS_TOKEN_GAMMA PostgreSQL hybrid search BM25 dense vector RAG",
+      "relevant": ["evaldoc_c:0"]
+    },
+    {
+      "qid": "he06",
+      "question": "EVALCORPUS_TOKEN_DELTA tomato plants summer watering gardening tips",
+      "relevant": ["evaldoc_c:1"]
+    },
+    {
+      "qid": "he07",
+      "question": "EVALCORPUS_TOKEN_EPSILON programming language machine learning API",
+      "relevant": ["evaldoc_d:0"]
+    },
+    {
+      "qid": "he08",
+      "question": "EVALCORPUS_TOKEN_ZETA training data precision recall evaluation metrics",
+      "relevant": ["evaldoc_e:0"]
+    },
+    {
+      "qid": "he09",
+      "question": "France capital Paris EVALCORPUS_TOKEN_ALPHA retrieval evaluation",
+      "relevant": ["evaldoc_a:0"]
+    },
+    {
+      "qid": "he10",
+      "question": "299792458 EVALCORPUS_TOKEN_BETA vacuum speed",
+      "relevant": ["evaldoc_b:0"]
+    },
+    {
+      "qid": "he11",
+      "question": "relational database lexical BM25 EVALCORPUS_TOKEN_GAMMA",
+      "relevant": ["evaldoc_c:0"]
+    },
+    {
+      "qid": "he12",
+      "question": "morning watering heat waves EVALCORPUS_TOKEN_DELTA gardening",
+      "relevant": ["evaldoc_c:1"]
+    },
+    {
+      "qid": "he13",
+      "question": "Python pipelines EVALCORPUS_TOKEN_EPSILON",
+      "relevant": ["evaldoc_d:0"]
+    },
+    {
+      "qid": "he14",
+      "question": "machine learning models metrics EVALCORPUS_TOKEN_ZETA",
+      "relevant": ["evaldoc_e:0"]
+    },
+    {
+      "qid": "he15",
+      "question": "EVALCORPUS_TOKEN_ALPHA Paris France geography",
+      "relevant": ["evaldoc_a:0"]
+    },
+    {
+      "qid": "he16",
+      "question": "light speed constant EVALCORPUS_TOKEN_BETA physics",
+      "relevant": ["evaldoc_b:0"]
+    },
+    {
+      "qid": "he17",
+      "question": "RAG systems hybrid retrieval EVALCORPUS_TOKEN_GAMMA PostgreSQL",
+      "relevant": ["evaldoc_c:0"]
+    },
+    {
+      "qid": "he18",
+      "question": "gardening summer EVALCORPUS_TOKEN_DELTA tomatoes",
+      "relevant": ["evaldoc_c:1"]
+    },
+    {
+      "qid": "he19",
+      "question": "API services EVALCORPUS_TOKEN_EPSILON Python",
+      "relevant": ["evaldoc_d:0"]
+    },
+    {
+      "qid": "he20",
+      "question": "evaluation metrics ML EVALCORPUS_TOKEN_ZETA",
+      "relevant": ["evaldoc_e:0"]
+    },
+    {
+      "qid": "he21",
+      "question": "capital city France EVALCORPUS_TOKEN_ALPHA",
+      "relevant": ["evaldoc_a:0"]
+    },
+    {
+      "qid": "he22",
+      "question": "meters per second vacuum EVALCORPUS_TOKEN_BETA",
+      "relevant": ["evaldoc_b:0"]
+    },
+    {
+      "qid": "he23",
+      "question": "dense vector retrieval EVALCORPUS_TOKEN_GAMMA",
+      "relevant": ["evaldoc_c:0"]
+    },
+    {
+      "qid": "he24",
+      "question": "water tomato plants EVALCORPUS_TOKEN_DELTA summer",
+      "relevant": ["evaldoc_c:1"]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "note": "CI smoke: first 5 queries from eval/cases/qrels.json (aligned with eval_corpus_chunks)"
+  },
+  "queries": [
+    {
+      "qid": "he01",
+      "question": "What city is the capital of France according to EVALCORPUS_TOKEN_ALPHA?",
+      "relevant": ["evaldoc_a:0"]
+    },
+    {
+      "qid": "he02",
+      "question": "EVALCORPUS_TOKEN_ALPHA geography benchmarks Paris France capital",
+      "relevant": ["evaldoc_a:0"]
+    },
+    {
+      "qid": "he03",
+      "question": "Speed of light in vacuum EVALCORPUS_TOKEN_BETA meters per second",
+      "relevant": ["evaldoc_b:0"]
+    },
+    {
+      "qid": "he04",
+      "question": "What physical constant is tied to EVALCORPUS_TOKEN_BETA in physics references?",
+      "relevant": ["evaldoc_b:0"]
+    },
+    {
+      "qid": "he05",
+      "question": "EVALCORPUS_TOKEN_GAMMA PostgreSQL hybrid search BM25 dense vector RAG",
+      "relevant": ["evaldoc_c:0"]
+    }
+  ]
+}

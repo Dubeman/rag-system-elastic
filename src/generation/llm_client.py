@@ -1,9 +1,11 @@
 """Simple Ollama LLM client for RAG system."""
 
-import requests
 import json
-import os
 import logging
+import os
+from typing import Optional
+
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +18,21 @@ class LLMClient:
         self.model = model or os.getenv("LLM_MODEL_NAME", "tinyllama")
         logger.info(f"LLMClient initialized with base_url: {self.base_url}, model: {self.model}")
 
-    def generate(self, prompt: str, model: str = None, stream: bool = False) -> str:
+    def generate(
+        self,
+        prompt: str,
+        model: str = None,
+        stream: bool = False,
+        *,
+        timeout: Optional[float] = None,
+    ) -> str:
         """Generates text using the Ollama LLM service."""
         target_model = model or self.model
+        request_timeout = (
+            float(timeout)
+            if timeout is not None
+            else float(os.getenv("LLM_TIMEOUT", "180"))
+        )
         try:
             response = requests.post(
                 f"{self.base_url}/api/generate",
@@ -27,7 +41,7 @@ class LLMClient:
                     "prompt": prompt,
                     "stream": stream
                 },
-                timeout=float(os.getenv("LLM_TIMEOUT", 180))
+                timeout=request_timeout,
             )
             response.raise_for_status()
             

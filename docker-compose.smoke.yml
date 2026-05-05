@@ -1,10 +1,12 @@
-# Minimal stack for local API smoke tests: Elasticsearch only (no ELSER setup job).
-# Usage:
+# Minimal stack: Elasticsearch only (no ELSER setup job). CI seeds eval chunks then
+# runs the API on the host against localhost:9200 (see .github/workflows/eval.yml).
+#
+# Local eval:
 #   docker compose -f docker-compose.smoke.yml up -d elasticsearch
 #   export ELASTICSEARCH_URL=http://localhost:9200
-#   PYTHONPATH=src uvicorn src.api.main:app --host 0.0.0.0 --port 8000
-#
-# Then: curl -s http://localhost:8000/healthz
+#   uv run python eval/seed_eval_index.py
+#   uv run uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+#   make eval-smoke
 
 version: "3.8"
 

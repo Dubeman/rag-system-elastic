@@ -1,0 +1,50 @@
+[
+  {
+    "document_id": "evaldoc_a",
+    "filename": "evaldoc_a.txt",
+    "chunk_id": 0,
+    "text": "EVALCORPUS_TOKEN_ALPHA The capital of France is Paris. Geography benchmarks use this fact for retrieval evaluation.",
+    "token_count": 20,
+    "char_count": 120
+  },
+  {
+    "document_id": "evaldoc_b",
+    "filename": "evaldoc_b.txt",
+    "chunk_id": 0,
+    "text": "EVALCORPUS_TOKEN_BETA The speed of light in vacuum is approximately 299792458 meters per second in physics references.",
+    "token_count": 22,
+    "char_count": 130
+  },
+  {
+    "document_id": "evaldoc_c",
+    "filename": "evaldoc_c.txt",
+    "chunk_id": 0,
+    "text": "EVALCORPUS_TOKEN_GAMMA PostgreSQL is a relational database. Hybrid search combines lexical BM25 and dense vector retrieval in RAG systems.",
+    "token_count": 24,
+    "char_count": 140
+  },
+  {
+    "document_id": "evaldoc_c",
+    "filename": "evaldoc_c.txt",
+    "chunk_id": 1,
+    "text": "EVALCORPUS_TOKEN_DELTA Unrelated gardening tips: water tomato plants early in the morning during summer heat waves.",
+    "token_count": 18,
+    "char_count": 100
+  },
+  {
+    "document_id": "evaldoc_d",
+    "filename": "evaldoc_d.txt",
+    "chunk_id": 0,
+    "text": "EVALCORPUS_TOKEN_EPSILON Python is a programming language often used for machine learning pipelines and API services.",
+    "token_count": 20,
+    "char_count": 115
+  },
+  {
+    "document_id": "evaldoc_e",
+    "filename": "evaldoc_e.txt",
+    "chunk_id": 0,
+    "text": "EVALCORPUS_TOKEN_ZETA Machine learning models require training data and evaluation metrics such as precision and recall.",
+    "token_count": 21,
+    "char_count": 125
+  }
+]

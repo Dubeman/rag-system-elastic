@@ -1,6 +1,7 @@
 """Answer generator for RAG system with basic guardrails."""
 
 import logging
+import os
 from typing import Dict, List, Optional
 
 from .llm_client import LLMClient
@@ -12,41 +13,124 @@ logger = logging.getLogger(__name__)
 class AnswerGenerator:
     """Generates answers using an LLM based on retrieved contexts."""
 
+    _STOP_WORDS = frozenset(
+        {
+            "what",
+            "is",
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+            "how",
+            "make",
+            "create",
+            "build",
+            "develop",
+            "do",
+            "you",
+            "can",
+            "tell",
+            "me",
+            "about",
+            "explain",
+            "describe",
+        }
+    )
+
     def __init__(self, llm_client: LLMClient):
         self.llm_client = llm_client
         self.guardrails = ContentSafetyGuardrails()  # Add this line
+
+    def _keyword_chunk_relevant(self, query: str, content: str) -> bool:
+        stop_words = self._STOP_WORDS
+        query_terms = set(query.lower().split()) - stop_words
+        if not query_terms:
+            return True
+        if not content.strip():
+            return False
+        context_terms = set(content.lower().split()) - stop_words
+        overlap = len(query_terms.intersection(context_terms))
+        relevance_score = overlap / len(query_terms)
+        return relevance_score >= 0.2
+
+    def _parse_yes_no_answer(self, raw: str) -> Optional[bool]:
+        if not raw:
+            return None
+        first_line = raw.strip().splitlines()[0].strip().upper()
+        if first_line.startswith("YES"):
+            return True
+        if first_line.startswith("NO"):
+            return False
+        head = first_line[:12]
+        if "YES" in head and "NO" not in head:
+            return True
+        if "NO" in head and "YES" not in head:
+            return False
+        return None
+
+    def _llm_passage_relevant(self, query: str, passage: str) -> str:
+        max_chars = int(os.getenv("RAG_RELEVANCE_JUDGE_MAX_CHARS", "2400"))
+        body = passage.strip()[:max_chars]
+        prompt = (
+            "You are a strict relevance judge for RAG retrieval.\n"
+            f"Question: {query.strip()}\n\n"
+            f"Passage:\n{body}\n\n"
+            "Is this passage relevant for answering the question? "
+            "Reply with exactly one word on the first line: YES or NO.\n"
+            "Answer:"
+        )
+        timeout = float(os.getenv("LLM_JUDGE_TIMEOUT", "45"))
+        return self.llm_client.generate(prompt, timeout=timeout)
 
     def check_context_relevance(self, query: str, contexts: List[Dict]) -> bool:
         """Check if retrieved contexts are actually relevant to the query."""
         if not contexts:
             return False
-        
-        # Extract key terms from query (remove common words)
-        stop_words = {'what', 'is', 'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'how', 'to', 'make', 'create', 'build', 'develop', 'do', 'you', 'can', 'tell', 'me', 'about', 'explain', 'describe'}
-        query_terms = set(query.lower().split()) - stop_words
-        
-        if not query_terms:
-            return True  # If query has no meaningful terms, allow it
-        
-        # Check relevance of each context
-        relevant_contexts = 0
+
+        force_keyword = os.getenv("RAG_USE_KEYWORD_RELEVANCE", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        use_llm = (
+            not force_keyword
+            and self.llm_client is not None
+            and self.llm_client.is_available()
+        )
+
+        relevant = 0
         for context in contexts:
-            content = context.get('content', '')
-            if not content:
+            content = context.get("content", "") or ""
+            if not content.strip():
                 continue
-                
-            context_terms = set(content.lower().split()) - stop_words
-            
-            # Calculate overlap
-            overlap = len(query_terms.intersection(context_terms))
-            relevance_score = overlap / len(query_terms)
-            
-            # If any context is relevant, consider it valid
-            if relevance_score >= 0.2:  # 20% threshold
-                relevant_contexts += 1
-        
-        # Require at least 50% of contexts to be relevant
-        return relevant_contexts >= len(contexts) * 0.5
+
+            ok = False
+            if use_llm:
+                raw = self._llm_passage_relevant(query, content)
+                if isinstance(raw, str) and raw.startswith("Error:"):
+                    ok = self._keyword_chunk_relevant(query, content)
+                else:
+                    parsed = self._parse_yes_no_answer(raw)
+                    ok = parsed if parsed is not None else self._keyword_chunk_relevant(
+                        query, content
+                    )
+            else:
+                ok = self._keyword_chunk_relevant(query, content)
+
+            if ok:
+                relevant += 1
+
+        return relevant >= len(contexts) * 0.5
 
     def check_content_safety(self, query: str) -> bool:
         """Check if the query is safe to process."""

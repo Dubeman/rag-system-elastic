@@ -1,4 +1,4 @@
-"""Run retrieval eval against the RAG API using Kaggle ground truth.
+"""Run retrieval eval against the RAG API using qrels (eval/cases/qrels.json or build_qrels.py).
 
 Usage:
     python eval/run_eval.py --pipeline v1
@@ -357,6 +357,13 @@ def main() -> None:
         action="store_true",
         help="Print _source keys for one sample hit and exit",
     )
+    parser.add_argument(
+        "--fail-under-evidence-recall-at-5",
+        type=float,
+        default=None,
+        metavar="THRESHOLD",
+        help="Exit with code 1 if aggregate evidence_recall@5 is below this value (after writing results)",
+    )
     args = parser.parse_args()
 
     k_values = tuple(int(x.strip()) for x in args.k_values.split(",") if x.strip())
@@ -451,6 +458,16 @@ def main() -> None:
             )
 
     save_results(out_payload)
+
+    if args.fail_under_evidence_recall_at_5 is not None:
+        recall5 = float(out_payload["run"]["evidence_recall"].get("@5", 0.0))
+        floor = float(args.fail_under_evidence_recall_at_5)
+        if recall5 < floor:
+            print(
+                f"[FAIL] evidence_recall@5={recall5:.4f} is below required floor {floor:.4f}"
+            )
+            sys.exit(1)
+        print(f"[PASS] evidence_recall@5={recall5:.4f} >= {floor:.4f}")
 
 
 if __name__ == "__main__":
