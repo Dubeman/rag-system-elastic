@@ -14,7 +14,9 @@ Given a document collection (PDFs from Google Drive), the system:
 
 ## Architecture
 
-![System Architecture](architecture-v2.svg)
+![Luthro system architecture](docs/diagrams/luthro-architecture.svg)
+
+Source (Excalidraw): [luthro-architecture-segmented.excalidraw](luthro-architecture-segmented.excalidraw).
 
 Stack diagrams (Mermaid: Compose topology, ingest/query flows, observability, v2 note): [reports/RAG_STACK_DIAGRAM.md](reports/RAG_STACK_DIAGRAM.md).
 
